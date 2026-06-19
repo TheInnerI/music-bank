@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-card">
+        <h1>Join Music Bank</h1>
+        <p class="auth-sub">Create your artist account. Free forever.</p>
+
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+        {% if success %}
+        <div class="alert alert-success">Account created! Redirecting to dashboard...</div>
+        <script>setTimeout(() => window.location.href = '/artists/dashboard', 1000);</script>
+        {% endif %}
+
+        <form method="post" action="/auth/register" class="auth-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="username">Username *</label>
+                    <input type="text" id="username" name="username" required minlength="3" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="display_name">Display Name *</label>
+                    <input type="text" id="display_name" name="display_name" required autocomplete="name">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="email">Email *</label>
+                <input type="email" id="email" name="email" required autocomplete="email">
+            </div>
+            <div class="form-group">
+                <label for="password">Password * (min 8 characters)</label>
+                <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="genre">Primary Genre</label>
+                    <input type="text" id="genre" name="genre" placeholder="Electronic, Hip Hop, Rock...">
+                </div>
+                <div class="form-group">
+                    <label for="location">Location</label>
+                    <input type="text" id="location" name="location" placeholder="City, Country">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="bio">Bio</label>
+                <textarea id="bio" name="bio" rows="3" placeholder="Tell the world about your music..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-full">Create Account</button>
+        </form>
+
+        <p class="auth-alt">Already have an account? <a href="/auth/login">Login</a></p>
+    </div>
+</div>
+{% endblock %}

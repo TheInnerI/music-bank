@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}AI Artist Rights — Music Bank{% endblock %}
+
+{% block content %}
+<div class="legal-page">
+    <h1>🤖 AI Artist Rights Guide</h1>
+    <p class="text-muted">Your rights as an AI music creator on Music Bank.</p>
+
+    <div class="info-box">
+        <strong>Music Bank's Position:</strong> AI-generated music is real music. The artist is the human who directed the creation.
+        We protect AI artists, not the industry.
+    </div>
+
+    <pre class="guide-text">{{ guide }}</pre>
+
+    <!-- AI Declaration Levels -->
+    <section class="legal-section">
+        <h2>AI Declaration Levels</h2>
+        <p>Every track on Music Bank must declare its AI involvement level. This is for transparency, not punishment.</p>
+
+        <div class="declaration-levels">
+            {% for level_id, level in ai_declaration_levels.items() %}
+            <div class="declaration-card">
+                <div class="declaration-icon">{{ level.icon }}</div>
+                <div class="declaration-info">
+                    <strong>{{ level.name }}</strong>
+                    <p>{{ level.description }}</p>
+                    <span class="declaration-pct">AI involvement: ~{{ level.ai_percentage }}%</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- AI Tool Registry -->
+    <section class="legal-section">
+        <h2>AI Tool License Status</h2>
+        <div class="tool-grid">
+            {% for tool_id, tool in ai_tools.items() %}
+            <div class="tool-item {{ 'commercial' if tool.commercial_license else 'non-commercial' }}">
+                <strong>{{ tool.name }}</strong>
+                <span class="tool-type">{{ tool.type|replace('_', ' ')|title }}</span>
+                {% if tool.commercial_license %}
+                <span class="badge badge-green">✓ Commercial OK</span>
+                {% else %}
+                <span class="badge badge-red">✗ Non-commercial only</span>
+                {% endif %}
+                <a href="{{ tool.url }}" target="_blank" class="tool-link">Visit →</a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+
+<style>
+.info-box {
+    background: rgba(124, 92, 252, 0.1); border: 1px solid var(--accent);
+    border-radius: var(--radius-sm); padding: 16px; margin: 16px 0;
+}
+.guide-text {
+    background: var(--bg-card); padding: 24px; border-radius: var(--radius);
+    white-space: pre-wrap; font-family: var(--font); color: var(--text-muted);
+    border: 1px solid var(--border); margin: 16px 0;
+}
+.declaration-levels { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.declaration-card {
+    display: flex; gap: 16px; padding: 16px; background: var(--bg);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+}
+.declaration-icon { font-size: 32px; width: 48px; text-align: center; flex-shrink: 0; }
+.declaration-info { flex: 1; }
+.declaration-pct { font-size: 13px; color: var(--text-dim); }
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-top: 16px; }
+.tool-item {
+    padding: 12px; background: var(--bg); border-radius: var(--radius-sm);
+    border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px;
+}
+.tool-item.commercial { border-left: 3px solid var(--green); }
+.tool-item.non-commercial { border-left: 3px solid var(--red); }
+.tool-type { font-size: 12px; color: var(--text-dim); }
+.tool-link { font-size: 13px; margin-top: 4px; }
+</style>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Discover Music{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <div class="hero-content">
+        <h1>The World's First <span class="accent">Music Bank</span></h1>
+        <p class="hero-sub">Where artists deposit music and fans invest in talent. No gatekeepers. No label tax. Just music and the people who love it.</p>
+        <div class="hero-cta">
+            <a href="/auth/register" class="btn btn-lg">Start Banking Music</a>
+            <a href="/discover/" class="btn btn-lg btn-ghost">Explore the Vault</a>
+        </div>
+        <div class="hero-stats">
+            <div class="stat"><strong>10</strong> <span>Artists</span></div>
+            <div class="stat"><strong>∞</strong> <span>Potential</span></div>
+            <div class="stat"><strong>0%</strong> <span>Gatekeeper Tax</span></div>
+        </div>
+    </div>
+</div>
+
+<section class="section">
+    <div class="section-header">
+        <h2>🔥 Discovery Feed</h2>
+        <p>Algorithmically ranked by quality, engagement, and freshness — not payola.</p>
+    </div>
+    <div class="track-grid">
+        {% for track in tracks[:12] %}
+        <div class="track-card" data-track-id="{{ track.id }}">
+            <div class="track-cover">
+                <div class="track-cover-placeholder">
+                    <span>{{ track.title[0] }}</span>
+                </div>
+                <button class="play-btn" onclick="playTrack({{ track.id }}, '{{ track.audio_url }}')">▶</button>
+            </div>
+            <div class="track-info">
+                <a href="/tracks/{{ track.id }}" class="track-title">{{ track.title }}</a>
+                <a href="/artists/{{ track.artist_username }}" class="track-artist">{{ track.artist_name }}</a>
+                <div class="track-meta">
+                    <span class="track-genre">{{ track.genre|default('Music') }}</span>
+                    <span class="track-plays">▶ {{ track.plays }}</span>
+                    <span class="track-likes">♥ {{ track.likes }}</span>
+                </div>
+                {% if track.discovery_score %}
+                <div class="track-score" title="Discovery Score: transparency in ranking">
+                    ⚡ {{ "%.2f"|format(track.discovery_score) }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="section section-dark">
+    <div class="section-header">
+        <h2>How Music Bank Works</h2>
+    </div>
+    <div class="how-grid">
+        <div class="how-card">
+            <div class="how-icon">🏦</div>
+            <h3>Deposit Music</h3>
+            <p>Artists upload tracks to the bank. Every deposit is timestamped, attributed, and permanent.</p>
+        </div>
+        <div class="how-card">
+            <div class="how-icon">📈</div>
+            <h3>Transparent Discovery</h3>
+            <p>Our algorithm ranks by play velocity, like ratio, freshness, and fan deposits — never payola.</p>
+        </div>
+        <div class="how-card">
+            <div class="how-icon">💰</div>
+            <h3>Artists Earn</h3>
+            <p>Fans deposit directly to artists. No label taking 80%. No middleman. Just artist-to-fan value.</p>
+        </div>
+        <div class="how-card">
+            <div class="how-icon">🌍</div>
+            <h3>More Artists Than Labels</h3>
+            <p>We're building infrastructure to produce more independent artists than the entire traditional industry.</p>
+        </div>
+    </div>
+</section>
+
+<!-- Audio Player Bar -->
+<div id="player-bar" class="player-bar hidden">
+    <div class="player-info">
+        <span id="player-title">—</span>
+    </div>
+    <div class="player-controls">
+        <button onclick="togglePlay()">⏯</button>
+        <input type="range" id="player-seek" value="0" max="100" oninput="seek(this.value)">
+    </div>
+    <div class="player-time">
+        <span id="player-current">0:00</span> / <span id="player-duration">0:00</span>
+    </div>
+    <audio id="audio-player" ontimeupdate="updatePlayer()" onloadedmetadata="updateDuration()"></audio>
+</div>
+{% endblock %}

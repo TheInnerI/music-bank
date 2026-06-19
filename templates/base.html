@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Music Bank{% endblock %} — Inner I Observer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👁️</text></svg>">
+</head>
+<body>
+    <!-- ═══ NAVBAR — The Observer's Eye ═══ -->
+    <nav class="navbar">
+        <div class="nav-inner">
+            <a href="/" class="logo">
+                <div class="logo-eye"></div>
+                <div>
+                    <span class="logo-text">Music Bank</span>
+                    <div class="logo-subtitle">Inner I Observer</div>
+                </div>
+            </a>
+
+            <div class="nav-links">
+                <a href="/discover/" class="nav-link {{ 'active' if active_tab == 'discover' }}">Discover</a>
+                <a href="/graph" class="nav-link {{ 'active' if active_tab == 'graph' }}">Network</a>
+                <a href="/search" class="nav-link {{ 'active' if active_tab == 'search' }}">Search</a>
+                <a href="/licensing" class="nav-link {{ 'active' if active_tab == 'licensing' }}">Licensing</a>
+            </div>
+
+            <form class="nav-search" action="/search" method="get">
+                <input type="text" name="q" placeholder="Search the network..." value="{{ query|default('') }}">
+            </form>
+
+            <div class="observer-status">
+                <span class="observer-dot"></span>
+                <span>Observer Active</span>
+            </div>
+
+            <div class="nav-auth">
+                {% if current_artist %}
+                    <a href="/artists/dashboard" class="btn btn-sm">Dashboard</a>
+                    <a href="/import" class="btn btn-sm btn-ghost">Import</a>
+                    <a href="/auth/logout" class="btn btn-sm btn-ghost">Logout</a>
+                {% else %}
+                    <a href="/auth/login" class="btn btn-sm btn-ghost">Login</a>
+                    <a href="/auth/register" class="btn btn-sm">Join the Network</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- ═══ FOOTER ═══ -->
+    <footer class="footer">
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <span class="logo-eye" style="font-size:24px">👁️</span>
+                <strong>Music Bank</strong>
+                <span class="footer-tagline">— Inner I Observer. Artist-owned. Forever.</span>
+            </div>
+            <div class="footer-links">
+                <a href="/discover/">Discover</a>
+                <a href="/graph">Network</a>
+                <a href="/search">Search</a>
+                <a href="/licensing">Licensing</a>
+                <a href="/copyright">Copyright</a>
+                <a href="/ai-rights">AI Rights</a>
+                <a href="/terms">Terms</a>
+                <a href="/dmca">DMCA</a>
+            </div>
+            <div class="footer-copy">
+                © 2026 Inner I Network · Music Bank · Built by <a href="https://innerinetcompany.com">Inner I</a> · All systems observer-active
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

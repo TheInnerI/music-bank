@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}{{ feed_type|capitalize }}{% if query %} — "{{ query }}"{% endif %}{% if genre %} — {{ genre }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="feed-page">
+    <div class="feed-header">
+        <h1>
+            {% if feed_type == 'discovery' %}🔥 Discovery Feed
+            {% elif feed_type == 'trending' %}📈 Trending
+            {% elif feed_type == 'new' %}🆕 New Releases
+            {% elif feed_type == 'search' %}🔍 Search: "{{ query }}"
+            {% elif feed_type == 'genre' %}🎵 {{ genre }}
+            {% else %}🎵 Music{% endif %}
+        </h1>
+        <div class="feed-tabs">
+            <a href="/discover/" class="tab {{ 'active' if feed_type == 'discovery' }}">Discovery</a>
+            <a href="/discover/trending" class="tab {{ 'active' if feed_type == 'trending' }}">Trending</a>
+            <a href="/discover/new" class="tab {{ 'active' if feed_type == 'new' }}">New</a>
+        </div>
+    </div>
+
+    {% if tracks %}
+    <div class="track-list">
+        {% for t in tracks %}
+        <div class="track-list-item" data-track-id="{{ t.id }}">
+            <span class="track-num">{{ loop.index }}</span>
+            <div class="track-list-cover">
+                <span>{{ t.title[0] }}</span>
+            </div>
+            <div class="track-list-info">
+                <a href="/tracks/{{ t.id }}" class="track-title">{{ t.title }}</a>
+                <a href="/artists/{{ t.artist_username }}" class="track-artist">{{ t.artist_name }}</a>
+            </div>
+            <span class="track-genre-badge">{{ t.genre|default('') }}</span>
+            <span class="track-plays">▶ {{ t.plays }}</span>
+            <span class="track-likes">♥ {{ t.likes }}</span>
+            {% if t.discovery_score %}
+            <span class="track-score" title="Discovery Score">⚡ {{ "%.2f"|format(t.discovery_score) }}</span>
+            {% endif %}
+            <button class="play-btn-sm" onclick="playTrack({{ t.id }}, '{{ t.audio_url }}')">▶</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No tracks found. <a href="/auth/register">Be the first to upload!</a></p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Player Bar -->
+<div id="player-bar" class="player-bar hidden">
+    <div class="player-info"><span id="player-title">—</span></div>
+    <div class="player-controls">
+        <button onclick="togglePlay()">⏯</button>
+        <input type="range" id="player-seek" value="0" max="100" oninput="seek(this.value)">
+    </div>
+    <div class="player-time">
+        <span id="player-current">0:00</span> / <span id="player-duration">0:00</span>
+    </div>
+    <audio id="audio-player" ontimeupdate="updatePlayer()" onloadedmetadata="updateDuration()"></audio>
+</div>
+{% endblock %}

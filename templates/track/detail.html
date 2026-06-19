@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}{{ track.title }}{% endblock %}
+
+{% block content %}
+<div class="track-detail">
+    <div class="track-detail-header">
+        <div class="track-cover-large">
+            <span>{{ track.title[0] }}</span>
+        </div>
+        <div class="track-detail-info">
+            <h1>{{ track.title }}</h1>
+            <a href="/artists/{{ track.artist_username }}" class="track-artist-large">{{ track.artist_name }}</a>
+            <div class="track-detail-meta">
+                {% if track.genre %}<span class="badge">{{ track.genre }}</span>{% endif %}
+                {% if track.mood %}<span class="badge badge-ghost">{{ track.mood }}</span>{% endif %}
+                {% if track.bpm %}<span class="text-muted">{{ track.bpm }} BPM</span>{% endif %}
+                {% if track.key_signature %}<span class="text-muted">Key: {{ track.key_signature }}</span>{% endif %}
+            </div>
+            {% if track.description %}<p class="track-description">{{ track.description }}</p>{% endif %}
+            <div class="track-actions">
+                <button class="btn btn-lg" onclick="playTrack({{ track.id }}, '{{ track.audio_url }}')">▶ Play</button>
+                <button class="btn btn-lg btn-ghost" onclick="toggleLike({{ track.id }})" id="like-btn">
+                    {{ '♥' if liked else '♡' }} <span id="like-count">{{ track.likes }}</span>
+                </button>
+                <button class="btn btn-lg btn-ghost" onclick="showDepositModal({{ track.id }}, '{{ track.title }}')">💰 Support Artist</button>
+            </div>
+            <div class="track-stats-bar">
+                <span>▶ {{ track.plays }} plays</span>
+                <span>♥ {{ track.likes }} likes</span>
+                <span>💰 ${{ "%.2f"|format(track.earnings_cents / 100) }} earned</span>
+                <span>📅 {{ track.created_at[:10] }}</span>
+            </div>
+        </div>
+    </div>
+
+    {% if track.lyrics %}
+    <div class="track-lyrics">
+        <h3>Lyrics</h3>
+        <pre>{{ track.lyrics }}</pre>
+    </div>
+    {% endif %}
+
+    {% if more_tracks %}
+    <div class="more-tracks">
+        <h3>More from {{ track.artist_name }}</h3>
+        <div class="track-list">
+            {% for t in more_tracks %}
+            <div class="track-list-item" data-track-id="{{ t.id }}">
+                <a href="/tracks/{{ t.id }}" class="track-title">{{ t.title }}</a>
+                <span class="track-plays">▶ {{ t.plays }}</span>
+                <button class="play-btn-sm" onclick="playTrack({{ t.id }}, '{{ t.audio_url }}')">▶</button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Deposit Modal — Multi-Rail -->
+<div id="deposit-modal" class="modal hidden">
+    <div class="modal-content" style="max-width:520px">
+        <h3>💰 Support <span id="deposit-artist"></span></h3>
+        <p class="text-muted">Choose how you want to support this artist. 5% platform fee on all rails.</p>
+        <input type="hidden" id="deposit-track-id">
+
+        <!-- Payment Rail Tabs -->
+        <div class="deposit-rails">
+            <button class="deposit-rail-tab active" onclick="switchDepositRail('stripe')" id="rail-tab-stripe">💳 Stripe</button>
+            <button class="deposit-rail-tab" onclick="switchDepositRail('usdc')" id="rail-tab-usdc">🔵 USDC</button>
+            <button class="deposit-rail-tab" onclick="switchDepositRail('mio')" id="rail-tab-mio">🟣 $MIO</button>
+        </div>
+
+        <!-- Stripe Rail -->
+        <div id="deposit-rail-stripe" class="deposit-rail-panel">
+            <div class="form-group">
+                <label>Amount (USD)</label>
+                <div class="preset-amounts">
+                    <button type="button" class="btn btn-sm" onclick="setStripeDeposit(1)">$1</button>
+                    <button type="button" class="btn btn-sm" onclick="setStripeDeposit(5)">$5</button>
+                    <button type="button" class="btn btn-sm" onclick="setStripeDeposit(10)">$10</button>
+                    <button type="button" class="btn btn-sm" onclick="setStripeDeposit(25)">$25</button>
+                </div>
+                <input type="number" id="stripe-amount" min="1" step="0.01" placeholder="Custom amount">
+            </div>
+            <div class="form-group">
+                <label>Message (optional)</label>
+                <input type="text" id="stripe-message" placeholder="Love this track!">
+            </div>
+            <button class="btn btn-full" onclick="submitStripeDeposit()">Support via Stripe</button>
+        </div>
+
+        <!-- USDC Rail -->
+        <div id="deposit-rail-usdc" class="deposit-rail-panel hidden">
+            <div class="form-group">
+                <label>Amount (USDC)</label>
+                <div class="preset-amounts">
+                    <button type="button" class="btn btn-sm" onclick="setUsdcDeposit(1)">1 USDC</button>
+                    <button type="button" class="btn btn-sm" onclick="setUsdcDeposit(5)">5 USDC</button>
+                    <button type="button" class="btn btn-sm" onclick="setUsdcDeposit(10)">10 USDC</button>
+                    <button type="button" class="btn btn-sm" onclick="setUsdcDeposit(25)">25 USDC</button>
+                </div>
+                <input type="number" id="usdc-amount" min="1" step="0.01" placeholder="Custom USDC amount">
+            </div>
+            <div class="form-group">
+                <label>Your Wallet Address (on Base)</label>
+                <input type="text" id="usdc-from-wallet" placeholder="0x...">
+            </div>
+            <div class="form-group">
+                <label>Transaction Hash (after sending)</label>
+                <input type="text" id="usdc-tx-hash" placeholder="0x... (paste after sending USDC)">
+            </div>
+            <div class="form-group">
+                <label>Message (optional)</label>
+                <input type="text" id="usdc-message" placeholder="Love this track!">
+            </div>
+            <button class="btn btn-full" onclick="submitUsdcDeposit()">Verify USDC Deposit</button>
+            <p class="text-muted text-sm" style="margin-top:8px">Send USDC on Base to the artist's wallet, then paste tx hash above.</p>
+        </div>
+
+        <!-- $MIO Rail -->
+        <div id="deposit-rail-mio" class="deposit-rail-panel hidden">
+            <div class="form-group">
+                <label>Amount ($MIO)</label>
+                <div class="preset-amounts">
+                    <button type="button" class="btn btn-sm" onclick="setMioDeposit(10)">10 MIO</button>
+                    <button type="button" class="btn btn-sm" onclick="setMioDeposit(50)">50 MIO</button>
+                    <button type="button" class="btn btn-sm" onclick="setMioDeposit(100)">100 MIO</button>
+                    <button type="button" class="btn btn-sm" onclick="setMioDeposit(500)">500 MIO</button>
+                </div>
+                <input type="number" id="mio-amount" min="10" step="1" placeholder="Custom MIO amount">
+            </div>
+            <div class="form-group">
+                <label>Your Wallet Address (on Base)</label>
+                <input type="text" id="mio-from-wallet" placeholder="0x...">
+            </div>
+            <div class="form-group">
+                <label>Transaction Hash (after sending)</label>
+                <input type="text" id="mio-tx-hash" placeholder="0x...">
+            </div>
+            <div class="form-group">
+                <label>Message (optional)</label>
+                <input type="text" id="mio-message" placeholder="Love this track!">
+            </div>
+            <button class="btn btn-full" onclick="submitMioDeposit()">Verify $MIO Deposit</button>
+            <p class="text-muted text-sm" style="margin-top:8px">Send $MIO on Base to the artist's wallet, then paste tx hash above.</p>
+        </div>
+
+        <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" onclick="closeDepositModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Player Bar -->
+<div id="player-bar" class="player-bar hidden">
+    <div class="player-info"><span id="player-title">—</span></div>
+    <div class="player-controls">
+        <button onclick="togglePlay()">⏯</button>
+        <input type="range" id="player-seek" value="0" max="100" oninput="seek(this.value)">
+    </div>
+    <div class="player-time">
+        <span id="player-current">0:00</span> / <span id="player-duration">0:00</span>
+    </div>
+    <audio id="audio-player" ontimeupdate="updatePlayer()" onloadedmetadata="updateDuration()"></audio>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentDepositRail = 'stripe';
+
+function showDepositModal(trackId, title) {
+    document.getElementById('deposit-track-id').value = trackId;
+    document.getElementById('deposit-artist').textContent = title;
+    document.getElementById('deposit-modal').classList.remove('hidden');
+    switchDepositRail('stripe');
+}
+function closeDepositModal() {
+    document.getElementById('deposit-modal').classList.add('hidden');
+}
+function switchDepositRail(rail) {
+    currentDepositRail = rail;
+    ['stripe', 'usdc', 'mio'].forEach(r => {
+        document.getElementById('deposit-rail-' + r).classList.toggle('hidden', r !== rail);
+        document.getElementById('rail-tab-' + r).classList.toggle('active', r === rail);
+    });
+}
+function setStripeDeposit(usd) { document.getElementById('stripe-amount').value = usd; }
+function setUsdcDeposit(usdc) { document.getElementById('usdc-amount').value = usdc; }
+function setMioDeposit(mio) { document.getElementById('mio-amount').value = mio; }
+
+async function submitStripeDeposit() {
+    const trackId = document.getElementById('deposit-track-id').value;
+    const usd = parseFloat(document.getElementById('stripe-amount').value);
+    const message = document.getElementById('stripe-message').value;
+    if (!usd || usd < 1) { alert('Minimum deposit is $1.00'); return; }
+    const form = new FormData();
+    form.append('track_id', trackId);
+    form.append('amount', usd.toString());
+    form.append('message', message);
+    const resp = await fetch('/bank/deposit/stripe', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+        if (data.client_secret) {
+            // In production, load Stripe.js and confirm:
+            // const stripe = Stripe('pk_test_...');
+            // stripe.confirmCardPayment(data.client_secret);
+            alert('Stripe PaymentIntent created! In production, Stripe.js would handle card input. Mock: deposit recorded.');
+            // Auto-confirm for mock
+            await fetch('/bank/deposit/stripe/confirm', {
+                method: 'POST',
+                body: new URLSearchParams({ payment_intent_id: data.payment_intent_id })
+            });
+            alert('Deposit completed! The artist has been credited.');
+        } else {
+            alert('Deposit recorded!');
+        }
+        closeDepositModal();
+    } else {
+        alert('Error: ' + (data.detail || data.message));
+    }
+}
+
+async function submitUsdcDeposit() {
+    const trackId = document.getElementById('deposit-track-id').value;
+    const amount = parseFloat(document.getElementById('usdc-amount').value);
+    const wallet = document.getElementById('usdc-from-wallet').value.trim();
+    const txHash = document.getElementById('usdc-tx-hash').value.trim();
+    const message = document.getElementById('usdc-message').value;
+    if (!amount || amount < 1) { alert('Minimum is 1 USDC'); return; }
+    if (!wallet.startsWith('0x')) { alert('Valid wallet address required'); return; }
+    if (!txHash.startsWith('0x')) { alert('Valid tx hash required'); return; }
+    const form = new FormData();
+    form.append('track_id', trackId);
+    form.append('amount_usdc', amount.toString());
+    form.append('from_wallet', wallet);
+    form.append('tx_hash', txHash);
+    form.append('message', message);
+    const resp = await fetch('/bank/deposit/usdc', { method: 'POST', body: form });
+    const data = await resp.json();
+    alert(data.message || data.detail);
+    if (data.status === 'ok') closeDepositModal();
+}
+
+async function submitMioDeposit() {
+    const trackId = document.getElementById('deposit-track-id').value;
+    const amount = parseFloat(document.getElementById('mio-amount').value);
+    const wallet = document.getElementById('mio-from-wallet').value.trim();
+    const txHash = document.getElementById('mio-tx-hash').value.trim();
+    const message = document.getElementById('mio-message').value;
+    if (!amount || amount < 10) { alert('Minimum is 10 $MIO'); return; }
+    if (!wallet.startsWith('0x')) { alert('Valid wallet address required'); return; }
+    if (!txHash.startsWith('0x')) { alert('Valid tx hash required'); return; }
+    const form = new FormData();
+    form.append('track_id', trackId);
+    form.append('amount_mio', amount.toString());
+    form.append('from_wallet', wallet);
+    form.append('tx_hash', txHash);
+    form.append('message', message);
+    const resp = await fetch('/bank/deposit/mio', { method: 'POST', body: form });
+    const data = await resp.json();
+    alert(data.message || data.detail);
+    if (data.status === 'ok') closeDepositModal();
+}
+
+async function toggleLike(trackId) {
+    const resp = await fetch(`/tracks/${trackId}/like`, { method: 'POST' });
+    const data = await resp.json();
+    document.getElementById('like-btn').innerHTML = `${data.liked ? '♥' : '♡'} <span id="like-count">${data.count}</span>`;
+}
+</script>
+{% endblock %}

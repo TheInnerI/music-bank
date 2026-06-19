@@ -1,0 +1,600 @@
+{% extends "base.html" %}
+
+{% block title %}Storage & Tiers — Music Bank{% endblock %}
+
+{% block content %}
+<div class="storage-page">
+    <h1>💾 Storage & Tiers</h1>
+    <p class="text-muted">Choose the right plan for your music. Upgrade, add storage, or self-host.</p>
+
+    <!-- Current Usage -->
+    <section class="storage-section">
+        <h2>Your Current Usage</h2>
+        <div class="usage-bar">
+            <div class="usage-fill" style="width: {{ usage_pct }}%"></div>
+        </div>
+        <div class="usage-stats">
+            <span><strong>{{ current_tracks }}</strong> / {{ max_tracks }} tracks</span>
+            <span><strong>{{ used_gb }} GB</strong> / {{ total_gb }} GB storage</span>
+            <span class="badge {{ 'badge-green' if tier == 'free' else 'badge-flame' if tier == 'pro' else 'badge-gold' }}">{{ tier_name }}</span>
+        </div>
+    </section>
+
+    <!-- Storage Tiers -->
+    <section class="storage-section">
+        <h2>Storage Tiers</h2>
+        <div class="tier-cards">
+            {% for tier_id, tier in tiers.items() %}
+            <div class="tier-card {{ 'popular' if tier.popular }} {{ 'current' if tier_id == current_tier }}">
+                {% if tier.popular %}
+                <div class="tier-badge-popular">Most Popular</div>
+                {% endif %}
+                {% if tier_id == current_tier %}
+                <div class="tier-badge-current">Current Plan</div>
+                {% endif %}
+
+                <h3>{{ tier.name }}</h3>
+                <div class="tier-price">
+                    {% if tier.price_monthly == 0 and tier_id != 'self_hosted' %}
+                        <span class="price-free">Free</span>
+                    {% elif tier_id == 'self_hosted' %}
+                        <span class="price-free">Free Software</span>
+                    {% else %}
+                        <span class="price-amount">${{ "%.2f"|format(tier.price_monthly) }}</span>
+                        <span class="price-period">/month</span>
+                        <br>
+                        <span class="price-yearly">${{ "%.2f"|format(tier.price_yearly) }}/year (save {{ ((1 - tier.price_yearly / (tier.price_monthly * 12)) * 100)|round }}%)</span>
+                    {% endif %}
+                </div>
+
+                <div class="tier-storage">
+                    {% if tier.storage_gb == -1 %}
+                        <span class="storage-unlimited">∞ Unlimited Storage</span>
+                    {% elif tier.storage_gb >= 1 %}
+                        <span class="storage-amount">{{ tier.storage_gb }} GB</span> audio storage
+                    {% else %}
+                        <span class="storage-amount">{{ tier.storage_mb }} MB</span> audio storage
+                    {% endif %}
+                    <br>
+                    <span class="storage-tracks">Up to {{ tier.max_tracks if tier.max_tracks > 0 else '∞' }} tracks</span>
+                </div>
+
+                <ul class="tier-features">
+                    {% for feature in tier.features[:8] %}
+                    <li>✅ {{ feature }}</li>
+                    {% endfor %}
+                    {% if tier.features|length > 8 %}
+                    <li class="tier-more">+ {{ tier.features|length - 8 }} more...</li>
+                    {% endif %}
+                </ul>
+
+                {% if tier.limitations %}
+                <div class="tier-limitations">
+                    <strong>Limitations:</strong>
+                    {% for lim in tier.limitations %}
+                    <span class="limitation">• {{ lim }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if tier_id == current_tier %}
+                <button class="btn btn-full" disabled>Current Plan</button>
+                {% elif tier_id == 'self_hosted' %}
+                <a href="{{ tier.github_url }}" target="_blank" class="btn btn-full btn-flame">{{ tier.cta }}</a>
+                {% elif tier.price_monthly > 0 %}
+                <button class="btn btn-full" onclick="upgradeTier('{{ tier_id }}')">{{ tier.cta }}</button>
+                {% else %}
+                <button class="btn btn-full" disabled>Free</button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Cloud Storage Providers -->
+    <section class="storage-section">
+        <h2>☁️ Cloud Storage Integrations</h2>
+        <p class="text-muted">Connect your own cloud storage for unlimited audio files. Music Bank handles the rest.</p>
+
+        <div class="provider-grid">
+            {% for provider_id, provider in providers.items() %}
+            <div class="provider-card {{ 'connected' if provider_id in connected_providers }}">
+                <div class="provider-header">
+                    <span class="provider-icon">{{ provider.icon }}</span>
+                    <div>
+                        <strong>{{ provider.name }}</strong>
+                        <span class="provider-cost">
+                            {% if provider.storage_cost_per_gb == 0 %}
+                                Free (your hardware)
+                            {% elif provider.free_tier_gb > 0 %}
+                                {{ provider.free_tier_gb }}GB free, then ${{ "%.3f"|format(provider.storage_cost_per_gb) }}/GB/mo
+                            {% else %}
+                                ${{ "%.3f"|format(provider.storage_cost_per_gb) }}/GB/mo
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if provider_id in connected_providers %}
+                    <span class="badge badge-green">Connected</span>
+                    {% endif %}
+                </div>
+                <p class="provider-desc">{{ provider.description }}</p>
+                <div class="provider-meta">
+                    <span>API: {{ provider.api_type }}</span>
+                    <span>Setup: {{ provider.setup_difficulty }}</span>
+                    {% if provider.egress_cost_per_gb == 0 %}
+                    <span class="badge badge-green">No egress fees</span>
+                    {% endif %}
+                </div>
+                <div class="provider-pros-cons">
+                    <div class="pros">
+                        {% for pro in provider.pros[:2] %}
+                        <span>✓ {{ pro }}</span>
+                        {% endfor %}
+                    </div>
+                    <div class="cons">
+                        {% for con in provider.cons[:1] %}
+                        <span>✗ {{ con }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% if provider_id in connected_providers %}
+                <button class="btn btn-sm btn-ghost" onclick="disconnectProvider('{{ provider_id }}')">Disconnect</button>
+                {% elif provider.url %}
+                <a href="{{ provider.url }}" target="_blank" class="btn btn-sm">Set Up →</a>
+                {% else %}
+                <button class="btn btn-sm" onclick="setupLocalStorage()">Configure Local</button>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Storage Calculator -->
+    <section class="storage-section">
+        <h2>🧮 Storage Calculator</h2>
+        <p class="text-muted">Estimate your storage needs and costs.</p>
+
+        <div class="calculator-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Number of Tracks</label>
+                    <input type="number" id="calc-tracks" value="100" min="1" oninput="calculateStorage()">
+                </div>
+                <div class="form-group">
+                    <label>Avg Track Duration</label>
+                    <input type="number" id="calc-duration" value="3.5" min="0.5" max="30" step="0.5" oninput="calculateStorage()">
+                    <span class="text-muted text-sm">minutes</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Audio Quality</label>
+                <select id="calc-quality" onchange="calculateStorage()">
+                    <option value="mp3_128">MP3 128kbps (smallest)</option>
+                    <option value="mp3_320" selected>MP3 320kbps (recommended)</option>
+                    <option value="flac">FLAC (lossless)</option>
+                    <option value="wav">WAV (uncompressed)</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="calc-results" class="calc-results">
+            <!-- Filled by JS -->
+        </div>
+    </section>
+
+    <!-- Self-Hosting Guide -->
+    <section class="storage-section">
+        <h2>🖥️ Self-Host Your Own Node</h2>
+        <p class="text-muted">Run Music Bank on your own hardware. Unlimited storage. Full control. No platform fees.</p>
+
+        <div class="self-host-steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                    <h4>Clone the Repository</h4>
+                    <code>git clone https://github.com/TheInnerI/music-bank.git</code>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                    <h4>Configure Environment</h4>
+                    <code>cp .env.example .env && nano .env</code>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                    <h4>Deploy</h4>
+                    <code>docker-compose up -d</code>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <div class="step-content">
+                    <h4>Access Your Node</h4>
+                    <code>http://localhost:8090</code>
+                </div>
+            </div>
+        </div>
+
+        <div class="self-host-requirements">
+            <h4>Minimum Requirements</h4>
+            <ul>
+                <li>Linux (Ubuntu 22.04+) or macOS</li>
+                <li>2 GB RAM (4 GB recommended)</li>
+                <li>Docker + Docker Compose</li>
+                <li>10 GB disk space (code + OS)</li>
+                <li>Your own storage for audio files (local disk, NAS, or cloud)</li>
+            </ul>
+        </div>
+
+        <a href="https://github.com/TheInnerI/music-bank" target="_blank" class="btn btn-flame btn-lg">
+            📦 View on GitHub
+        </a>
+    </section>
+</div>
+
+<style>
+.storage-page { max-width: 1000px; margin: 0 auto; }
+.storage-section {
+    background: var(--surface); border-radius: var(--radius); padding: 24px;
+    border: 1px solid var(--border); margin-bottom: 24px;
+}
+.storage-section h2 { font-size: 20px; margin-bottom: 16px; }
+
+/* Usage bar */
+.usage-bar {
+    height: 12px; background: var(--deep); border-radius: 6px; overflow: hidden; margin-bottom: 12px;
+}
+.usage-fill {
+    height: 100%; background: linear-gradient(90deg, var(--observer), var(--breath));
+    border-radius: 6px; transition: width 0.5s ease;
+}
+.usage-stats { display: flex; gap: 24px; font-size: 14px; }
+
+/* Tier cards */
+.tier-cards {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;
+}
+.tier-card {
+    background: var(--deep); border-radius: var(--radius); padding: 24px;
+    border: 2px solid var(--border); position: relative; transition: var(--transition);
+}
+.tier-card:hover { border-color: var(--observer); transform: translateY(-2px); }
+.tier-card.popular { border-color: var(--flame); }
+.tier-card.current { border-color: var(--success); }
+.tier-badge-popular {
+    position: absolute; top: -10px; right: 16px;
+    background: var(--flame); color: white; padding: 2px 12px;
+    border-radius: var(--radius-full); font-size: 12px; font-weight: 600;
+}
+.tier-badge-current {
+    position: absolute; top: -10px; right: 16px;
+    background: var(--success); color: white; padding: 2px 12px;
+    border-radius: var(--radius-full); font-size: 12px; font-weight: 600;
+}
+.tier-price { margin: 12px 0; }
+.price-free { font-size: 24px; font-weight: 700; color: var(--success); }
+.price-amount { font-size: 28px; font-weight: 700; }
+.price-period { color: var(--text-muted); }
+.price-yearly { font-size: 13px; color: var(--text-dim); }
+.tier-storage { margin: 12px 0; padding: 12px; background: var(--surface); border-radius: var(--radius-sm); }
+.storage-unlimited { font-size: 18px; font-weight: 700; color: var(--gold); }
+.storage-amount { font-size: 18px; font-weight: 700; }
+.storage-tracks { font-size: 13px; color: var(--text-muted); }
+.tier-features { list-style: none; padding: 0; margin: 16px 0; }
+.tier-features li { padding: 4px 0; font-size: 14px; }
+.tier-more { color: var(--observer-light); font-style: italic; }
+.tier-limitations { margin: 12px 0; padding: 12px; background: rgba(248, 113, 113, 0.05); border-radius: var(--radius-sm); }
+.tier-limitations strong { font-size: 13px; color: var(--danger); }
+.limitation { display: block; font-size: 13px; color: var(--text-muted); }
+
+/* Provider grid */
+.provider-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.provider-card {
+    background: var(--deep); border-radius: var(--radius-sm); padding: 16px;
+    border: 1px solid var(--border);
+}
+.provider-card.connected { border-color: var(--success); }
+.provider-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.provider-icon { font-size: 24px; }
+.provider-cost { display: block; font-size: 13px; color: var(--text-muted); }
+.provider-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 8px; }
+.provider-meta { display: flex; gap: 12px; font-size: 12px; color: var(--text-dim); margin-bottom: 8px; flex-wrap: wrap; }
+.provider-pros-cons { font-size: 13px; margin: 8px 0; }
+.pros span { display: block; color: var(--success); }
+.cons span { display: block; color: var(--danger); }
+
+/* Calculator */
+.calculator-form { background: var(--deep); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 16px; }
+.calc-results { background: var(--deep); padding: 16px; border-radius: var(--radius-sm); }
+
+/* Self-host */
+.self-host-steps { display: flex; flex-direction: column; gap: 16px; margin: 16px 0; }
+.step { display: flex; gap: 16px; align-items: flex-start; }
+.step-num {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--observer);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: white; flex-shrink: 0;
+}
+.step-content code {
+    display: block; background: var(--void); padding: 8px 12px;
+    border-radius: var(--radius-sm); font-family: var(--font-mono);
+    font-size: 13px; margin-top: 4px; color: var(--breath);
+}
+.self-host-requirements { margin: 16px 0; padding: 16px; background: var(--deep); border-radius: var(--radius-sm); }
+.self-host-requirements ul { margin: 8px 0; padding-left: 20px; }
+.self-host-requirements li { font-size: 14px; color: var(--text-muted); padding: 2px 0; }
+</style>
+
+<script>
+function calculateStorage() {
+    const tracks = parseInt(document.getElementById('calc-tracks').value) || 100;
+    const duration = parseFloat(document.getElementById('calc-duration').value) || 3.5;
+    const quality = document.getElementById('calc-quality').value;
+
+    const qualitySizes = { mp3_128: 2.8, mp3_320: 7.2, flac: 15.0, wav: 30.3 };
+    const avgSize = qualitySizes[quality] || 7.2;
+    const adjustedSize = avgSize * (duration / 3.0);
+    const totalAudioGB = (tracks * adjustedSize) / 1024;
+    const totalMetadataMB = tracks * 6.5 / 1024;
+
+    const providers = {
+        'Cloudflare R2': { storage: 0.015, egress: 0, free: 10 },
+        'Backblaze B2': { storage: 0.005, egress: 0.01, free: 10 },
+        'AWS S3': { storage: 0.023, egress: 0.09, free: 5 },
+        'Wasabi': { storage: 0.0069, egress: 0, free: 0 },
+    };
+
+    let costHTML = '<div class="cost-grid">';
+    for (const [name, p] of Object.entries(providers)) {
+        const billableGB = Math.max(0, totalAudioGB - p.free);
+        const storageCost = billableGB * p.storage;
+        const egressCost = totalAudioGB * 0.1 * p.egress;
+        const total = storageCost + egressCost;
+        costHTML += `<div class="cost-item"><strong>${name}</strong><br>${total < 0.01 ? 'Free' : '$' + total.toFixed(2) + '/mo'}</div>`;
+    }
+    costHTML += '</div>';
+
+    document.getElementById('calc-results').innerHTML = `
+        <div class="calc-summary">
+            <div class="stat-card"><span class="stat-value">${tracks}</span><span class="stat-label">Tracks</span></div>
+            <div class="stat-card"><span class="stat-value">${adjustedSize.toFixed(1)} MB</span><span class="stat-label">Avg Track Size</span></div>
+            <div class="stat-card"><span class="stat-value">${totalAudioGB.toFixed(1)} GB</span><span class="stat-label">Total Audio</span></div>
+            <div class="stat-card"><span class="stat-value">${totalMetadataMB.toFixed(1)} MB</span><span class="stat-label">Vectors + Metadata</span></div>
+        </div>
+        <h4 style="margin-top:16px">Monthly Storage Costs</h4>
+        ${costHTML}
+    `;
+}
+
+function upgradeTier(tierId) {
+    window.location.href = '/bank/upgrade?tier=' + tierId;
+}
+
+function disconnectProvider(providerId) {
+    if (confirm('Disconnect ' + providerId + '? Your files will not be deleted.')) {
+        fetch('/api/storage/disconnect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: providerId })
+        }).then(() => location.reload());
+    }
+}
+
+function setupLocalStorage() {
+    alert('Local storage is configured automatically. Audio files are stored in /data/audio/ on your server.');
+}
+
+function setupLocalStorage() {
+    alert('Local storage is configured automatically. Audio files are stored in /data/audio/ on your server.');
+}
+
+// Run on load
+calculateStorage();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- MUSIC-SPECIFIC FREE STORAGE -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="storage-section">
+    <h2>🎵 Music-Specific Free Storage</h2>
+    <p class="text-muted">These services are designed specifically for musicians. Some complement Music Bank, others it replaces.</p>
+
+    <div class="music-storage-grid">
+        {% for service_id, service in music_storage.items() %}
+        <div class="music-storage-card {{ service.music_bank_fit }}">
+            <div class="msc-header">
+                <span class="msc-icon">{{ service.icon }}</span>
+                <div>
+                    <strong>{{ service.name }}</strong>
+                    <span class="msc-cost">
+                        {% if service.free_tier %}
+                            Free{% if service.free_storage_gb > 0 %} ({{ service.free_storage_gb }}GB){% elif service.free_storage_gb == -1 %} (Unlimited){% endif %}
+                        {% else %}
+                            {{ service.cost }}
+                        {% endif %}
+                    </span>
+                </div>
+                <span class="badge {{ 'badge-green' if service.music_bank_fit == 'excellent' else 'badge-flame' if service.music_bank_fit == 'complementary' else 'badge-yellow' if service.music_bank_fit == 'personal_backup' else 'badge-red' }}">
+                    {% if service.music_bank_fit == 'excellent' %}Excellent Fit
+                    {% elif service.music_bank_fit == 'complementary' %}Use With Music Bank
+                    {% elif service.music_bank_fit == 'personal_backup' %}Personal Backup
+                    {% elif service.music_bank_fit == 'replaceable' %}Music Bank Replaces This
+                    {% else %}Poor Fit{% endif %}
+                </span>
+            </div>
+            <p class="msc-notes">{{ service.notes }}</p>
+            <div class="msc-features">
+                {% for feature in service.features[:4] %}
+                <span>✓ {{ feature }}</span>
+                {% endfor %}
+            </div>
+            {% if service.limitations %}
+            <div class="msc-limitations">
+                {% for lim in service.limitations[:2] %}
+                <span>✗ {{ lim }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if service.recommendation %}
+            <div class="msc-recommendation">
+                💡 {{ service.recommendation }}
+            </div>
+            {% endif %}
+            {% if service.warning %}
+            <div class="msc-warning">
+                ⚠️ {{ service.warning }}
+            </div>
+            {% endif %}
+            <a href="{{ service.url }}" target="_blank" class="btn btn-sm">Visit {{ service.name }} →</a>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- RECOMMENDED SETUPS -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="storage-section">
+    <h2>🎯 Recommended Setups</h2>
+    <p class="text-muted">Pre-configured storage combinations for different budgets.</p>
+
+    <div class="setup-cards">
+        {% for setup_id, setup in recommended_setups.items() %}
+        <div class="setup-card">
+            <div class="setup-header">
+                <h3>{{ setup.name }}</h3>
+                <span class="setup-cost">{{ setup.cost }}</span>
+            </div>
+            <p class="setup-desc">{{ setup.description }}</p>
+            <ul class="setup-steps">
+                {% for step in setup.setup %}
+                <li>{{ step }}</li>
+                {% endfor %}
+            </ul>
+            {% if setup.total_free_storage %}
+            <div class="setup-storage">
+                <strong>Free Storage:</strong> {{ setup.total_free_storage }}
+            </div>
+            {% endif %}
+            {% if setup.paid_storage_cost %}
+            <div class="setup-storage">
+                <strong>Paid Storage Cost:</strong> {{ setup.paid_storage_cost }}
+            </div>
+            {% endif %}
+            {% if setup.notes %}
+            <p class="setup-notes">{{ setup.notes }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- FREE TIER COMPARISON TABLE -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="storage-section">
+    <h2>📊 Free Tier Comparison (2026 Verified)</h2>
+    <div class="table-responsive">
+        <table class="data-table comparison-table">
+            <thead>
+                <tr>
+                    <th>Provider</th>
+                    <th>Free Storage</th>
+                    <th>Free Egress</th>
+                    <th>API</th>
+                    <th>Music Bank Fit</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for provider_id, provider in free_storage.items() %}
+                <tr class="{{ 'row-excellent' if provider.music_bank_fit == 'excellent' else 'row-good' if provider.music_bank_fit == 'good' else 'row-poor' if provider.music_bank_fit == 'poor' else '' }}">
+                    <td>
+                        <strong>{{ provider.icon }} {{ provider.name }}</strong>
+                        {% if provider.warning %}
+                        <br><span class="text-sm text-dim">{{ provider.warning }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if provider.free_storage_gb == -1 %}
+                            Unlimited
+                        {% else %}
+                            {{ provider.free_storage_gb }} GB
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if provider.free_egress_gb == 'unlimited' %}
+                            Unlimited
+                        {% elif provider.free_egress_gb == '1:1' %}
+                            1:1 ratio
+                        {% elif provider.free_egress_multiplier %}
+                            {{ provider.free_egress_multiplier }}x stored
+                        {% elif provider.free_egress_gb %}
+                            {{ provider.free_egress_gb }} GB
+                        {% else %}
+                            $0
+                        {% endif %}
+                    </td>
+                    <td>{{ provider.api }}</td>
+                    <td>
+                        {% if provider.music_bank_fit == 'excellent' %}
+                            <span class="badge badge-green">Excellent</span>
+                        {% elif provider.music_bank_fit == 'good' %}
+                            <span class="badge badge-flame">Good</span>
+                        {% elif provider.music_bank_fit == 'complementary' %}
+                            <span class="badge badge-breath">Complementary</span>
+                        {% elif provider.music_bank_fit == 'personal_backup' %}
+                            <span class="badge badge-yellow">Backup</span>
+                        {% elif provider.music_bank_fit == 'replaceable' %}
+                            <span class="badge badge-gray">Replaceable</span>
+                        {% else %}
+                            <span class="badge badge-red">Poor</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<style>
+.music-storage-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px; margin-top: 16px; }
+.music-storage-card {
+    background: var(--deep); border-radius: var(--radius-sm); padding: 20px;
+    border: 1px solid var(--border);
+}
+.music-storage-card.excellent { border-left: 4px solid var(--success); }
+.music-storage-card.complementary { border-left: 4px solid var(--observer); }
+.music-storage-card.personal_backup { border-left: 4px solid var(--gold); }
+.music-storage-card.replaceable { border-left: 4px solid var(--danger); }
+.msc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.msc-icon { font-size: 28px; }
+.msc-cost { display: block; font-size: 13px; color: var(--text-muted); }
+.msc-notes { font-size: 14px; color: var(--text-muted); margin-bottom: 12px; }
+.msc-features, .msc-limitations { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.msc-features span { font-size: 13px; color: var(--success); }
+.msc-limitations span { font-size: 13px; color: var(--danger); }
+.msc-recommendation { background: rgba(139, 92, 246, 0.1); border-radius: var(--radius-sm); padding: 8px 12px; margin: 8px 0; font-size: 13px; color: var(--observer-light); }
+.msc-warning { background: rgba(251, 191, 36, 0.1); border-radius: var(--radius-sm); padding: 8px 12px; margin: 8px 0; font-size: 13px; color: var(--gold); }
+
+.setup-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 16px; }
+.setup-card { background: var(--deep); border-radius: var(--radius-sm); padding: 20px; border: 1px solid var(--border); }
+.setup-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.setup-cost { font-size: 18px; font-weight: 700; color: var(--success); }
+.setup-desc { font-size: 14px; color: var(--text-muted); margin-bottom: 12px; }
+.setup-steps { list-style: none; padding: 0; margin: 8px 0; }
+.setup-steps li { font-size: 13px; padding: 4px 0; color: var(--text); }
+.setup-storage { margin: 8px 0; padding: 8px; background: var(--surface); border-radius: var(--radius-sm); font-size: 13px; }
+.setup-notes { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+
+.table-responsive { overflow-x: auto; }
+.comparison-table { font-size: 13px; }
+.comparison-table td { padding: 10px 12px; }
+.row-excellent { background: rgba(52, 211, 153, 0.05); }
+.row-good { background: rgba(139, 92, 246, 0.05); }
+.row-poor { opacity: 0.6; }
+</style>
+{% endblock %}

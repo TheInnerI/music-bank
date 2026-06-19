@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block title %}Neural Network — Music Bank{% endblock %}
+
+{% block content %}
+<div class="graph-page">
+    <div class="graph-header">
+        <h1>🧠 Artist Neural Network</h1>
+        <p class="text-muted">Every artist is a node. Connections form through follows, deposits, collaborations, and genre similarity. The network grows with every upload and every support.</p>
+        <div class="graph-controls">
+            <button class="btn btn-sm" onclick="resetZoom()">🔄 Reset View</button>
+            <button class="btn btn-sm" onclick="toggleLabels()">🏷️ Toggle Labels</button>
+            <select id="cluster-filter" onchange="filterCluster(this.value)">
+                <option value="all">All Genres</option>
+                <option value="electronic">Electronic</option>
+                <option value="hiphop">Hip Hop</option>
+                <option value="rock">Rock</option>
+                <option value="folk">Folk</option>
+                <option value="classical">Classical</option>
+                <option value="soul">Soul / Jazz / Blues</option>
+                <option value="pop">Pop</option>
+                <option value="other">Other</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="graph-container">
+        <svg id="graph-svg"></svg>
+    </div>
+
+    <div class="graph-legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#7c5cfc"></span> Electronic</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span> Hip Hop</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> Rock</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#34d399"></span> Folk</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span> Classical</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#f97316"></span> Soul/Jazz/Blues</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#ec4899"></span> Pop</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#6b7280"></span> Other</div>
+    </div>
+
+    <div class="graph-stats" id="graph-stats">
+        <div class="stat-card"><span class="stat-value" id="node-count">0</span><span class="stat-label">Artists</span></div>
+        <div class="stat-card"><span class="stat-value" id="edge-count">0</span><span class="stat-label">Connections</span></div>
+        <div class="stat-card"><span class="stat-value" id="cluster-count">0</span><span class="stat-label">Clusters</span></div>
+    </div>
+</div>
+
+<!-- Node detail popup -->
+<div id="node-popup" class="graph-popup hidden">
+    <div class="popup-content">
+        <div class="popup-avatar" id="popup-avatar"></div>
+        <div class="popup-info">
+            <strong id="popup-name"></strong>
+            <span class="text-muted" id="popup-username"></span>
+            <span class="badge" id="popup-genre"></span>
+            <div class="popup-stats">
+                <span id="popup-plays"></span>
+                <span id="popup-earnings"></span>
+            </div>
+            <a id="popup-link" href="#" class="btn btn-sm">View Profile →</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+let graphData = {nodes: [], links: []};
+let simulation = null;
+let svg, g, link, node, label;
+let showLabels = true;
+let currentTransform = d3.zoomIdentity;
+
+const CLUSTER_COLORS = {
+    electronic: '#7c5cfc',
+    hiphop: '#f59e0b',
+    rock: '#ef4444',
+    folk: '#34d399',
+    classical: '#8b5cf6',
+    soul: '#f97316',
+    pop: '#ec4899',
+    other: '#6b7280',
+};
+
+async function loadGraph() {
+    const resp = await fetch('/api/graph/data');
+    graphData = await resp.json();
+    document.getElementById('node-count').textContent = graphData.nodes.length;
+    document.getElementById('edge-count').textContent = graphData.links.length;
+    const clusters = new Set(graphData.nodes.map(n => n.cluster));
+    document.getElementById('cluster-count').textContent = clusters.size;
+    renderGraph();
+}
+
+function renderGraph() {
+    const container = document.querySelector('.graph-container');
+    const width = container.clientWidth;
+    const height = Math.max(600, window.innerHeight - 300);
+
+    svg = d3.select('#graph-svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    // Clear previous
+    svg.selectAll('*').remove();
+
+    // Zoom behavior
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 10])
+        .on('zoom', (event) => {
+            currentTransform = event.transform;
+            g.attr('transform', event.transform);
+        });
+
+    svg.call(zoom);
+
+    g = svg.append('g');
+
+    // Arrow markers for directed edges
+    svg.append('defs').selectAll('marker')
+        .data(['follow', 'deposit', 'collaboration', 'genre_similarity'])
+        .enter().append('marker')
+        .attr('id', d => 'arrow-' + d)
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 20)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', '#444');
+
+    // Links
+    link = g.append('g')
+        .selectAll('line')
+        .data(graphData.links)
+        .enter().append('line')
+        .attr('stroke', d => {
+            if (d.type === 'deposit') return '#7c5cfc';
+            if (d.type === 'collaboration') return '#34d399';
+            if (d.type === 'follow') return '#6b7280';
+            return '#333';
+        })
+        .attr('stroke-opacity', d => Math.min(0.8, 0.2 + d.weight * 0.1))
+        .attr('stroke-width', d => Math.min(4, 0.5 + d.weight * 0.3))
+        .attr('marker-end', d => 'url(#arrow-' + d.type + ')');
+
+    // Nodes
+    node = g.append('g')
+        .selectAll('circle')
+        .data(graphData.nodes)
+        .enter().append('circle')
+        .attr('r', d => Math.max(5, Math.min(40, d.size || 8)))
+        .attr('fill', d => CLUSTER_COLORS[d.cluster] || '#6b7280')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1.5)
+        .style('cursor', 'pointer')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended))
+        .on('click', (event, d) => showNodePopup(d, event))
+        .on('mouseover', (event, d) => {
+            d3.select(event.currentTarget).attr('stroke', '#7c5cfc').attr('stroke-width', 3);
+            highlightConnections(d);
+        })
+        .on('mouseout', (event, d) => {
+            d3.select(event.currentTarget).attr('stroke', '#fff').attr('stroke-width', 1.5);
+            resetHighlight();
+        });
+
+    // Labels
+    label = g.append('g')
+        .selectAll('text')
+        .data(graphData.nodes)
+        .enter().append('text')
+        .text(d => d.display_name)
+        .attr('font-size', d => Math.max(10, Math.min(16, (d.size || 8) * 0.4)))
+        .attr('fill', '#e8e8f0')
+        .attr('dx', d => Math.max(8, d.size || 8) + 4)
+        .attr('dy', 4)
+        .attr('pointer-events', 'none')
+        .style('text-shadow', '0 1px 3px rgba(0,0,0,0.8)')
+        .style('opacity', showLabels ? 1 : 0);
+
+    // Force simulation
+    simulation = d3.forceSimulation(graphData.nodes)
+        .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-200))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => Math.max(10, d.size || 8) + 5))
+        .force('x', d3.forceX(width / 2).strength(0.05))
+        .force('y', d3.forceY(height / 2).strength(0.05))
+        .on('tick', ticked);
+
+    function ticked() {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+        node
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
+
+        label
+            .attr('x', d => d.x)
+            .attr('y', d => d.y);
+    }
+}
+
+function dragstarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+}
+
+function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+}
+
+function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+}
+
+function highlightConnections(d) {
+    const connected = new Set();
+    connected.add(d.id);
+    graphData.links.forEach(l => {
+        if (l.source.id === d.id) connected.add(l.target.id);
+        if (l.target.id === d.id) connected.add(l.source.id);
+    });
+
+    node.attr('opacity', n => connected.has(n.id) ? 1 : 0.2);
+    link.attr('stroke-opacity', l =>
+        (l.source.id === d.id || l.target.id === d.id) ? 0.8 : 0.05
+    );
+    label.style('opacity', n => connected.has(n.id) ? 1 : 0.1);
+}
+
+function resetHighlight() {
+    node.attr('opacity', 1);
+    link.attr('stroke-opacity', d => Math.min(0.8, 0.2 + d.weight * 0.1));
+    label.style('opacity', showLabels ? 1 : 0);
+}
+
+function showNodePopup(d, event) {
+    const popup = document.getElementById('node-popup');
+    document.getElementById('popup-avatar').textContent = d.display_name[0];
+    document.getElementById('popup-name').textContent = d.display_name;
+    document.getElementById('popup-username').textContent = '@' + d.username;
+    document.getElementById('popup-genre').textContent = d.genre || 'Music';
+    document.getElementById('popup-plays').textContent = '▶ ' + (d.plays || 0) + ' plays';
+    document.getElementById('popup-earnings').textContent = '💰 $' + ((d.balance_cents || 0) / 100).toFixed(2);
+    document.getElementById('popup-link').href = '/artists/' + d.username;
+    popup.classList.remove('hidden');
+    popup.style.left = (event.pageX + 15) + 'px';
+    popup.style.top = (event.pageY - 10) + 'px';
+}
+
+// Close popup on click outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#node-popup') && !e.target.closest('circle')) {
+        document.getElementById('node-popup').classList.add('hidden');
+    }
+});
+
+function resetZoom() {
+    svg.transition().duration(750).call(
+        d3.zoom().transform,
+        d3.zoomIdentity
+    );
+}
+
+function toggleLabels() {
+    showLabels = !showLabels;
+    label.transition().duration(300).style('opacity', showLabels ? 1 : 0);
+}
+
+function filterCluster(cluster) {
+    if (cluster === 'all') {
+        node.attr('opacity', 1);
+        link.attr('stroke-opacity', d => Math.min(0.8, 0.2 + d.weight * 0.1));
+        label.style('opacity', showLabels ? 1 : 0);
+    } else {
+        const visible = new Set();
+        graphData.nodes.forEach(n => {
+            if (n.cluster === cluster) visible.add(n.id);
+        });
+        node.attr('opacity', n => visible.has(n.id) ? 1 : 0.1);
+        link.attr('stroke-opacity', l =>
+            (visible.has(l.source.id) && visible.has(l.target.id)) ? 0.6 : 0.02
+        );
+        label.style('opacity', n => visible.has(n.id) ? (showLabels ? 1 : 0) : 0.05);
+    }
+}
+
+// Load on page load
+loadGraph();
+</script>
+{% endblock %}

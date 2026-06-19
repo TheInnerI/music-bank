@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Search{% if query %} — "{{ query }}"{% endif %}{% endblock %}
+
+{% block content %}
+<div class="search-page">
+    <div class="search-header">
+        <h1>🔍 Semantic Search</h1>
+        <p class="text-muted">Search by vibe, mood, sound — not just tags. "Chill electronic with piano" or "artists like early Bon Iver."</p>
+
+        <form action="/search" method="get" class="search-form">
+            <input type="text" name="q" value="{{ query }}" placeholder="Describe what you're looking for..." class="search-input">
+            <button type="submit" class="btn">Search</button>
+        </form>
+
+        <div class="search-examples">
+            <span class="text-muted">Try:</span>
+            <button class="search-example" onclick="setQuery('chill lo-fi beats with piano')">chill lo-fi beats</button>
+            <button class="search-example" onclick="setQuery('energetic electronic dance music')">energetic EDM</button>
+            <button class="search-example" onclick="setQuery('soulful blues guitar raw')">soulful blues</button>
+            <button class="search-example" onclick="setQuery('indie folk campfire acoustic')">indie folk</button>
+            <button class="search-example" onclick="setQuery('dark atmospheric synthwave')">dark synthwave</button>
+        </div>
+    </div>
+
+    {% if query %}
+    <div class="search-results">
+        <h2>Results for "{{ query }}"</h2>
+        {% if results %}
+        <div class="track-list">
+            {% for r in results %}
+            <div class="track-list-item">
+                <div class="track-list-cover"><span>{{ r.title[0] }}</span></div>
+                <div class="track-list-info">
+                    <a href="/tracks/{{ r.track_id }}" class="track-title">{{ r.title }}</a>
+                    <a href="/artists/{{ r.artist_username }}" class="track-artist">{{ r.artist_name }}</a>
+                    <span class="text-muted">{{ r.mood|default('') }} {{ r.genre|default('') }}</span>
+                </div>
+                <span class="search-score" title="Semantic match score">
+                    {{ "%.0f"|format(r.score * 100) }}% match
+                </span>
+                <button class="play-btn-sm" onclick="playTrack({{ r.track_id }}, '/static/audio/demo.mp3')">▶</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No tracks found matching "{{ query }}". Try different words or <a href="/auth/register">upload your own!</a></p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Player Bar -->
+<div id="player-bar" class="player-bar hidden">
+    <div class="player-info"><span id="player-title">—</span></div>
+    <div class="player-controls">
+        <button onclick="togglePlay()">⏯</button>
+        <input type="range" id="player-seek" value="0" max="100" oninput="seek(this.value)">
+    </div>
+    <div class="player-time">
+        <span id="player-current">0:00</span> / <span id="player-duration">0:00</span>
+    </div>
+    <audio id="audio-player" ontimeupdate="updatePlayer()" onloadedmetadata="updateDuration()"></audio>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setQuery(q) {
+    document.querySelector('.search-input').value = q;
+    document.querySelector('.search-form').submit();
+}
+</script>
+{% endblock %}

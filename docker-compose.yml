@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  music-bank:
+    build: .
+    container_name: music-bank
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./music_bank.db:/app/music_bank.db
+      - ./static/audio:/app/static/audio
+      - ./data:/app/data
+    environment:
+      - MUSIC_BANK_SECRET=${MUSIC_BANK_SECRET:-change-me-in-production}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY:-}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+      - APP_URL=${APP_URL:-https://musicbank.innerinetcompany.com}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: music-bank-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - music-bank
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,9 @@
+# Caddyfile for Music Bank
+# Production: musicbank.innerinetcompany.com
+
+musicbank.innerinetcompany.com {
+    reverse_proxy music-bank:8090
+    log {
+        output file /data/access.log
+    }
+}

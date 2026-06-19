@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Track{% endblock %}
+
+{% block content %}
+<div class="upload-page">
+    <h1>⬆️ Upload Track</h1>
+    <p class="text-muted">Deposit a new track into the Music Bank. Your track will be automatically protected.</p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+    {% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+    {% endif %}
+
+    <form method="post" action="/artists/upload" class="upload-form" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="title">Track Title *</label>
+            <input type="text" id="title" name="title" required maxlength="200">
+        </div>
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" rows="2"></textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="genre">Genre</label>
+                <input type="text" id="genre" name="genre" placeholder="Electronic, Hip Hop...">
+            </div>
+            <div class="form-group">
+                <label for="mood">Mood</label>
+                <input type="text" id="mood" name="mood" placeholder="Chill, Energetic, Dark...">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="bpm">BPM</label>
+                <input type="number" id="bpm" name="bpm" min="1" max="300" placeholder="120">
+            </div>
+            <div class="form-group">
+                <label for="key_signature">Key</label>
+                <input type="text" id="key_signature" name="key_signature" placeholder="Am, C, F#m...">
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="lyrics">Lyrics (optional)</label>
+            <textarea id="lyrics" name="lyrics" rows="6" placeholder="Paste lyrics here..."></textarea>
+        </div>
+
+        <!-- AI Declaration -->
+        <div class="form-group ai-declaration">
+            <label>AI Involvement Level *</label>
+            <p class="text-muted text-sm">Be honest. AI music is welcome here. This is for transparency, not punishment.</p>
+            <div class="ai-levels">
+                <label class="ai-level-option">
+                    <input type="radio" name="ai_level" value="fully_human" checked>
+                    <span class="ai-level-label">👤 Fully Human</span>
+                    <span class="ai-level-desc">No AI tools used</span>
+                </label>
+                <label class="ai-level-option">
+                    <input type="radio" name="ai_level" value="human_primary">
+                    <span class="ai-level-label">👤🤖 Human Primary, AI-Assisted</span>
+                    <span class="ai-level-desc">AI for mastering, noise reduction, etc.</span>
+                </label>
+                <label class="ai-level-option">
+                    <input type="radio" name="ai_level" value="ai_assisted">
+                    <span class="ai-level-label">🤖👤 AI-Assisted</span>
+                    <span class="ai-level-desc">Significant AI involvement, human directed</span>
+                </label>
+                <label class="ai-level-option">
+                    <input type="radio" name="ai_level" value="ai_generated_human_edited">
+                    <span class="ai-level-label">🤖✏️ AI-Generated, Human-Edited</span>
+                    <span class="ai-level-desc">AI generated, human edited/arranged</span>
+                </label>
+                <label class="ai-level-option">
+                    <input type="radio" name="ai_level" value="fully_ai">
+                    <span class="ai-level-label">🤖 Fully AI-Generated</span>
+                    <span class="ai-level-desc">AI-generated, human provided prompts</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- AI Tools -->
+        <div class="form-group">
+            <label>AI Tools Used (if any)</label>
+            <div class="ai-tools-grid">
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="suno"> Suno</label>
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="udio"> Udio</label>
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="aiva"> AIVA</label>
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="mubert"> Mubert</label>
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="soundraw"> Soundraw</label>
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="boomy"> Boomy</label>
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="kits_ai"> Kits.AI</label>
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="landr"> LANDR</label>
+                <label class="ai-tool-checkbox"><input type="checkbox" name="ai_tools" value="other"> Other</label>
+            </div>
+        </div>
+
+        <!-- License -->
+        <div class="form-group">
+            <label>License Type</label>
+            <select name="license_type">
+                <option value="all_rights_reserved">© All Rights Reserved</option>
+                <option value="cc_by">🅯 Creative Commons BY</option>
+                <option value="cc_by_sa">🅯🅢 Creative Commons BY-SA</option>
+                <option value="cc_by_nc">🅯🅝 Creative Commons BY-NC</option>
+                <option value="sync_license">🎬 Sync License Available</option>
+            </select>
+        </div>
+
+        <!-- Sync -->
+        <div class="form-group">
+            <label><input type="checkbox" name="sync_available" value="1"> Available for Sync Licensing</label>
+            <input type="text" name="sync_price" placeholder="Pricing (e.g., '$500-$5000')" style="margin-top:8px">
+        </div>
+
+        <!-- Audio File -->
+        <div class="form-group">
+            <label>Audio File *</label>
+            <div class="file-upload-area" onclick="document.getElementById('audio-input').click()">
+                <p>🎵 Drop audio file here or click to browse</p>
+                <p class="text-muted text-sm">MP3, WAV, FLAC — Max 50MB</p>
+                <input type="file" name="audio_file" accept="audio/*" style="display:none" id="audio-input">
+            </div>
+        </div>
+
+        <!-- Auto-protection -->
+        <div class="auto-protection-notice">
+            <h3>🛡️ Automatic Protection (No Action Needed)</h3>
+            <div class="protection-checklist">
+                <span>✅ Fingerprinting</span>
+                <span>✅ Timestamping</span>
+                <span>✅ Watermarking</span>
+                <span>✅ Copyright notice</span>
+                <span>✅ Ownership certificate</span>
+                <span>✅ DMCA protection</span>
+                <span>✅ Semantic embedding</span>
+                <span>✅ Graph network</span>
+                <span>✅ Sync analysis</span>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-full btn-lg">Upload & Protect Track</button>
+    </form>
+</div>
+
+<style>
+.ai-declaration { background: var(--bg-elevated); padding: 16px; border-radius: var(--radius); }
+.ai-levels { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.ai-level-option {
+    display: flex; align-items: center; gap: 12px; padding: 12px;
+    background: var(--bg); border-radius: var(--radius-sm); border: 1px solid var(--border);
+    cursor: pointer; transition: all 0.2s;
+}
+.ai-level-option:hover { border-color: var(--accent); }
+.ai-level-option input { display: none; }
+.ai-level-option:has(input:checked) { border-color: var(--accent); background: rgba(124, 92, 252, 0.1); }
+.ai-level-label { font-weight: 600; min-width: 200px; }
+.ai-level-desc { font-size: 13px; color: var(--text-muted); }
+.ai-tools-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.ai-tool-checkbox {
+    padding: 6px 12px; background: var(--bg); border-radius: 20px;
+    border: 1px solid var(--border); font-size: 13px; cursor: pointer;
+}
+.ai-tool-checkbox:has(input:checked) { background: var(--accent); border-color: var(--accent); color: white; }
+.ai-tool-checkbox input { display: none; }
+.auto-protection-notice {
+    background: rgba(52, 211, 153, 0.1); border: 1px solid var(--green);
+    border-radius: var(--radius); padding: 16px; margin: 24px 0;
+}
+.auto-protection-notice h3 { font-size: 16px; margin-bottom: 12px; color: var(--green); }
+.protection-checklist { display: flex; flex-wrap: wrap; gap: 12px; }
+.protection-checklist span {
+    padding: 4px 12px; background: var(--bg); border-radius: 12px;
+    font-size: 13px; color: var(--text-muted);
+}
+</style>
+{% endblock %}

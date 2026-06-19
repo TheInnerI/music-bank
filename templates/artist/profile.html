@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+
+{% block title %}{{ artist.display_name }}{% endblock %}
+
+{% block content %}
+<div class="profile-page">
+    <!-- Header -->
+    <div class="profile-header">
+        <div class="profile-avatar">{{ artist.display_name[0] }}</div>
+        <div class="profile-info">
+            <h1>
+                {{ artist.display_name }}
+                {% if artist.is_verified %}✓{% endif %}
+                {% if artist.tier == 'pro' %}<span class="badge badge-pro">PRO</span>{% endif %}
+            </h1>
+            <p class="text-muted">@{{ artist.username }}</p>
+            {% if artist.bio %}<p class="profile-bio">{{ artist.bio }}</p>{% endif %}
+            <div class="profile-meta">
+                {% if artist.genre %}<span class="badge">{{ artist.genre }}</span>{% endif %}
+                {% if artist.location %}<span class="text-muted">📍 {{ artist.location }}</span>{% endif %}
+            </div>
+            <div class="profile-stats">
+                <strong>{{ tracks|length }}</strong> tracks ·
+                <strong>{{ artist.total_plays }}</strong> plays ·
+                <strong>{{ followers }}</strong> followers ·
+                <strong>{{ artist.total_fans }}</strong> fans ·
+                <strong>${{ "%.2f"|format(artist.lifetime_deposits_cents / 100) }}</strong> lifetime earned
+            </div>
+
+            <!-- Platform links -->
+            {% if platform_links %}
+            <div class="profile-platforms">
+                {% for pl in platform_links %}
+                <a href="{{ pl.url }}" target="_blank" class="platform-link platform-{{ pl.platform }}" title="{{ pl.platform }}">
+                    {% if pl.platform == 'youtube' %}▶️
+                    {% elif pl.platform == 'spotify' %}🎵
+                    {% elif pl.platform == 'apple_music' %}🎧
+                    {% elif pl.platform == 'soundcloud' %}☁️
+                    {% elif pl.platform == 'bandcamp' %}🏕️
+                    {% elif pl.platform == 'tidal' %}🌊
+                    {% elif pl.platform == 'amazon_music' %}📦
+                    {% else %}🔗{% endif %}
+                    {{ pl.platform|replace('_', ' ')|title }}
+                    {% if pl.follower_count %}<span class="platform-followers">{{ pl.follower_count }}</span>{% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="profile-actions">
+                {% if current_artist and current_artist.id != artist.id %}
+                <button class="btn btn-sm" onclick="toggleFollow({{ artist.id }})" id="follow-btn">
+                    {{ 'Following' if is_following else 'Follow' }}
+                </button>
+                <button class="btn btn-sm btn-ghost" onclick="showDepositModal({{ artist.id }}, '{{ artist.display_name }}')">💰 Support</button>
+                {% elif current_artist and current_artist.id == artist.id %}
+                <a href="/artists/{{ artist.username }}/edit" class="btn btn-sm">✏️ Edit Profile</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Tabs -->
+    <div class="profile-tabs">
+        <button class="profile-tab active" onclick="switchProfileTab('music')" id="tab-music">🎵 Music</button>
+        <button class="profile-tab" onclick="switchProfileTab('youtube')" id="tab-youtube">▶️ YouTube</button>
+        <button class="profile-tab" onclick="switchProfileTab('spotify')" id="tab-spotify">🎧 Spotify</button>
+        <button class="profile-tab" onclick="switchProfileTab('apple')" id="tab-apple">🍎 Apple Music</button>
+        <button class="profile-tab" onclick="switchProfileTab('earnings')" id="tab-earnings">💰 Earnings</button>
+        <button class="profile-tab" onclick="switchProfileTab('similar')" id="tab-similar">🔮 Similar Artists</button>
+    </div>
+
+    <!-- Tab: Music -->
+    <div id="profile-tab-music" class="profile-tab-content active">
+        <h2>Tracks</h2>
+        {% if tracks %}
+        <div class="track-list">
+            {% for t in tracks %}
+            <div class="track-list-item" data-track-id="{{ t.id }}">
+                <span class="track-num">{{ loop.index }}</span>
+                <div class="track-list-cover"><span>{{ t.title[0] }}</span></div>
+                <div class="track-list-info">
+                    <a href="/tracks/{{ t.id }}" class="track-title">{{ t.title }}</a>
+                    <span class="text-muted">{{ t.genre|default('') }}</span>
+                </div>
+                <span class="track-plays">▶ {{ t.plays }}</span>
+                <span class="track-likes">♥ {{ t.likes }}</span>
+                <span class="track-deposits">💰 ${{ "%.2f"|format(t.earnings_cents / 100) }}</span>
+                <button class="play-btn-sm" onclick="playTrack({{ t.id }}, '{{ t.audio_url }}')">▶</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state"><p>No published tracks yet.</p></div>
+        {% endif %}
+
+        <!-- Collaborations -->
+        {% if collaborations %}
+        <h2>Collaborations</h2>
+        <div class="collab-list">
+            {% for c in collaborations %}
+            <div class="collab-item">
+                <a href="/tracks/{{ c.track_id }}">{{ c.track_title }}</a>
+                <span class="badge">{{ c.role }}</span>
+                <span class="text-muted">with <a href="/artists/{{ c.collab_username }}">{{ c.collab_name }}</a></span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tab: YouTube -->
+    <div id="profile-tab-youtube" class="profile-tab-content">
+        {% if youtube_url %}
+        <div class="platform-embed">
+            <h2>▶️ YouTube</h2>
+            <p class="text-muted"><a href="{{ youtube_url }}" target="_blank">{{ youtube_url }}</a></p>
+            {% if youtube_channel_id %}
+            <div class="embed-container">
+                <iframe
+                    src="https://www.youtube.com/embed?listType=user_uploads&list={{ youtube_channel_id }}"
+                    frameborder="0"
+                    allowfullscreen
+                    style="width:100%;height:400px;border-radius:12px">
+                </iframe>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No YouTube channel linked.</p>
+            {% if current_artist and current_artist.id == artist.id %}
+            <a href="/artists/{{ artist.username }}/edit" class="btn btn-sm">Add YouTube Channel</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tab: Spotify -->
+    <div id="profile-tab-spotify" class="profile-tab-content">
+        {% if spotify_url %}
+        <div class="platform-embed">
+            <h2>🎧 Spotify</h2>
+            <p class="text-muted"><a href="{{ spotify_url }}" target="_blank">{{ spotify_url }}</a></p>
+            {% if spotify_id %}
+            <div class="embed-container">
+                <iframe
+                    src="https://open.spotify.com/embed/artist/{{ spotify_id }}"
+                    frameborder="0"
+                    allowtransparency="true"
+                    allow="encrypted-media"
+                    style="width:100%;height:380px;border-radius:12px">
+                </iframe>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No Spotify profile linked.</p>
+            {% if current_artist and current_artist.id == artist.id %}
+            <a href="/artists/{{ artist.username }}/edit" class="btn btn-sm">Add Spotify Profile</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tab: Apple Music -->
+    <div id="profile-tab-apple" class="profile-tab-content">
+        {% if apple_music_url %}
+        <div class="platform-embed">
+            <h2>🍎 Apple Music</h2>
+            <p class="text-muted"><a href="{{ apple_music_url }}" target="_blank">{{ apple_music_url }}</a></p>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No Apple Music profile linked.</p>
+            {% if current_artist and current_artist.id == artist.id %}
+            <a href="/artists/{{ artist.username }}/edit" class="btn btn-sm">Add Apple Music</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tab: Earnings -->
+    <div id="profile-tab-earnings" class="profile-tab-content">
+        {% if current_artist and current_artist.id == artist.id %}
+        <h2>💰 Your Earnings</h2>
+        <div class="bank-summary">
+            <div class="bank-card">
+                <span class="bank-label">USD Balance</span>
+                <span class="bank-balance">${{ "%.2f"|format(artist.balance_cents / 100) }}</span>
+            </div>
+            <div class="bank-card">
+                <span class="bank-label">USDC</span>
+                <span class="bank-value">{{ "%.2f"|format(artist.balance_usdc) }}</span>
+            </div>
+            <div class="bank-card">
+                <span class="bank-label">$MIO</span>
+                <span class="bank-value">{{ "%.2f"|format(artist.balance_mio) }}</span>
+            </div>
+            <div class="bank-card">
+                <span class="bank-label">Lifetime Earnings</span>
+                <span class="bank-value">${{ "%.2f"|format(artist.lifetime_deposits_cents / 100) }}</span>
+            </div>
+        </div>
+        <a href="/bank/" class="btn">🏦 Full Bank Dashboard →</a>
+        {% else %}
+        <h2>💰 Artist Earnings</h2>
+        <div class="earnings-public">
+            <div class="stat-card">
+                <span class="stat-value">${{ "%.2f"|format(artist.lifetime_deposits_cents / 100) }}</span>
+                <span class="stat-label">Lifetime Earnings</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ artist.total_fans }}</span>
+                <span class="stat-label">Supporting Fans</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ tracks|length }}</span>
+                <span class="stat-label">Tracks</span>
+            </div>
+        </div>
+        <p class="text-muted" style="margin-top:16px">Support this artist by depositing via Stripe, USDC on Base, or $MIO tokens.</p>
+        <button class="btn" onclick="showDepositModal({{ artist.id }}, '{{ artist.display_name }}')">💰 Support {{ artist.display_name }}</button>
+        {% endif %}
+    </div>
+
+    <!-- Tab: Similar Artists -->
+    <div id="profile-tab-similar" class="profile-tab-content">
+        <h2>🔮 Similar Artists</h2>
+        <p class="text-muted">Artists with similar sound profiles, based on vector analysis of their music, bio, and platform presence.</p>
+        <div id="similar-artists-list" class="similar-artists-grid">
+            <p class="text-muted">Loading similar artists...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Deposit Modal (simplified — full version in track/detail.html) -->
+<div id="deposit-modal" class="modal hidden">
+    <div class="modal-content" style="max-width:520px">
+        <h3>💰 Support <span id="deposit-artist"></span></h3>
+        <p class="text-muted">Choose how you want to support this artist.</p>
+        <input type="hidden" id="deposit-track-id" value="0">
+        <div class="deposit-rails">
+            <button class="deposit-rail-tab active" onclick="switchDepositRail('stripe')" id="rail-tab-stripe">💳 Stripe</button>
+            <button class="deposit-rail-tab" onclick="switchDepositRail('usdc')" id="rail-tab-usdc">🔵 USDC</button>
+            <button class="deposit-rail-tab" onclick="switchDepositRail('mio')" id="rail-tab-mio">🟣 $MIO</button>
+        </div>
+        <div id="deposit-rail-stripe" class="deposit-rail-panel">
+            <div class="form-group">
+                <label>Amount (USD)</label>
+                <div class="preset-amounts">
+                    <button type="button" class="btn btn-sm" onclick="setStripeDeposit(5)">$5</button>
+                    <button type="button" class="btn btn-sm" onclick="setStripeDeposit(10)">$10</button>
+                    <button type="button" class="btn btn-sm" onclick="setStripeDeposit(25)">$25</button>
+                </div>
+                <input type="number" id="stripe-amount" min="1" step="0.01" placeholder="Custom">
+            </div>
+            <button class="btn btn-full" onclick="submitStripeDeposit()">Support via Stripe</button>
+        </div>
+        <div id="deposit-rail-usdc" class="deposit-rail-panel hidden">
+            <div class="form-group">
+                <label>Amount (USDC)</label>
+                <input type="number" id="usdc-amount" min="1" step="0.01" placeholder="5.00">
+            </div>
+            <div class="form-group">
+                <label>Your Wallet + Tx Hash</label>
+                <input type="text" id="usdc-from-wallet" placeholder="0x...">
+                <input type="text" id="usdc-tx-hash" placeholder="0x... (tx hash)" style="margin-top:8px">
+            </div>
+            <button class="btn btn-full" onclick="submitUsdcDeposit()">Verify USDC</button>
+        </div>
+        <div id="deposit-rail-mio" class="deposit-rail-panel hidden">
+            <div class="form-group">
+                <label>Amount ($MIO)</label>
+                <input type="number" id="mio-amount" min="10" step="1" placeholder="100">
+            </div>
+            <div class="form-group">
+                <label>Your Wallet + Tx Hash</label>
+                <input type="text" id="mio-from-wallet" placeholder="0x...">
+                <input type="text" id="mio-tx-hash" placeholder="0x... (tx hash)" style="margin-top:8px">
+            </div>
+            <button class="btn btn-full" onclick="submitMioDeposit()">Verify $MIO</button>
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" onclick="closeDepositModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Player Bar -->
+<div id="player-bar" class="player-bar hidden">
+    <div class="player-info"><span id="player-title">—</span></div>
+    <div class="player-controls">
+        <button onclick="togglePlay()">⏯</button>
+        <input type="range" id="player-seek" value="0" max="100" oninput="seek(this.value)">
+    </div>
+    <div class="player-time">
+        <span id="player-current">0:00</span> / <span id="player-duration">0:00</span>
+    </div>
+    <audio id="audio-player" ontimeupdate="updatePlayer()" onloadedmetadata="updateDuration()"></audio>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Profile tabs
+function switchProfileTab(tab) {
+    document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.profile-tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('profile-tab-' + tab).classList.add('active');
+
+    // Load similar artists when tab is clicked
+    if (tab === 'similar') {
+        loadSimilarArtists();
+    }
+}
+
+// Similar artists
+async function loadSimilarArtists() {
+    const container = document.getElementById('similar-artists-list');
+    container.innerHTML = '<p class="text-muted">Loading...</p>';
+    try {
+        const resp = await fetch('/api/artists/{{ artist.id }}/similar');
+        const data = await resp.json();
+        if (data.results && data.results.length > 0) {
+            container.innerHTML = data.results.map(a => `
+                <div class="similar-artist-card">
+                    <div class="similar-avatar">${a.display_name[0]}</div>
+                    <a href="/artists/${a.username}" class="similar-name">${a.display_name}</a>
+                    <span class="badge">${a.genre || ''}</span>
+                    <span class="similar-score">${(a.score * 100).toFixed(0)}% match</span>
+                    <span class="text-muted">▶ ${a.total_plays || 0} plays</span>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<p class="text-muted">No similar artists found yet. As more artists join, the network learns.</p>';
+        }
+    } catch (e) {
+        container.innerHTML = '<p class="text-muted">Could not load similar artists.</p>';
+    }
+}
+
+// Deposit modal (same as track detail page)
+let currentDepositRail = 'stripe';
+function showDepositModal(artistId, name) {
+    document.getElementById('deposit-artist').textContent = name;
+    document.getElementById('deposit-track-id').value = '0';
+    document.getElementById('deposit-modal').classList.remove('hidden');
+    switchDepositRail('stripe');
+}
+function closeDepositModal() { document.getElementById('deposit-modal').classList.add('hidden'); }
+function switchDepositRail(rail) {
+    currentDepositRail = rail;
+    ['stripe','usdc','mio'].forEach(r => {
+        document.getElementById('deposit-rail-'+r).classList.toggle('hidden', r !== rail);
+        document.getElementById('rail-tab-'+r).classList.toggle('active', r === rail);
+    });
+}
+function setStripeDeposit(usd) { document.getElementById('stripe-amount').value = usd; }
+async function submitStripeDeposit() {
+    const usd = parseFloat(document.getElementById('stripe-amount').value);
+    if (!usd || usd < 1) { alert('Minimum $1.00'); return; }
+    const form = new FormData();
+    form.append('track_id', document.getElementById('deposit-track-id').value);
+    form.append('amount', usd.toString());
+    const resp = await fetch('/bank/deposit/stripe', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+        await fetch('/bank/deposit/stripe/confirm', { method: 'POST', body: new URLSearchParams({ payment_intent_id: data.payment_intent_id }) });
+        alert('Support sent! The artist has been credited.');
+        closeDepositModal();
+    } else { alert('Error: ' + (data.detail || data.message)); }
+}
+async function submitUsdcDeposit() {
+    const amount = parseFloat(document.getElementById('usdc-amount').value);
+    const wallet = document.getElementById('usdc-from-wallet').value.trim();
+    const txHash = document.getElementById('usdc-tx-hash').value.trim();
+    if (!amount || amount < 1) { alert('Minimum 1 USDC'); return; }
+    if (!wallet.startsWith('0x') || !txHash.startsWith('0x')) { alert('Valid wallet and tx hash required'); return; }
+    const form = new FormData();
+    form.append('track_id', document.getElementById('deposit-track-id').value);
+    form.append('amount_usdc', amount.toString());
+    form.append('from_wallet', wallet);
+    form.append('tx_hash', txHash);
+    const resp = await fetch('/bank/deposit/usdc', { method: 'POST', body: form });
+    const data = await resp.json();
+    alert(data.message || data.detail);
+    if (data.status === 'ok') closeDepositModal();
+}
+async function submitMioDeposit() {
+    const amount = parseFloat(document.getElementById('mio-amount').value);
+    const wallet = document.getElementById('mio-from-wallet').value.trim();
+    const txHash = document.getElementById('mio-tx-hash').value.trim();
+    if (!amount || amount < 10) { alert('Minimum 10 MIO'); return; }
+    if (!wallet.startsWith('0x') || !txHash.startsWith('0x')) { alert('Valid wallet and tx hash required'); return; }
+    const form = new FormData();
+    form.append('track_id', document.getElementById('deposit-track-id').value);
+    form.append('amount_mio', amount.toString());
+    form.append('from_wallet', wallet);
+    form.append('tx_hash', txHash);
+    const resp = await fetch('/bank/deposit/mio', { method: 'POST', body: form });
+    const data = await resp.json();
+    alert(data.message || data.detail);
+    if (data.status === 'ok') closeDepositModal();
+}
+</script>
+{% endblock %}

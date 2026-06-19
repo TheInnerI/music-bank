@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Copyright Center — Music Bank{% endblock %}
+
+{% block content %}
+<div class="legal-page">
+    <h1>©️ Copyright Center</h1>
+    <p class="text-muted">Protect your music. Register your copyright. Monetize with confidence.</p>
+
+    <!-- AI Tool License Checker -->
+    <section class="legal-section">
+        <h2>🤖 AI Tool License Checker</h2>
+        <p>Check if your AI music tool allows commercial use. This is critical for protecting your earnings.</p>
+
+        <div class="tool-checker">
+            <div class="form-group">
+                <label>Select your AI tool:</label>
+                <select id="tool-select" onchange="checkTool()">
+                    <option value="">— Select a tool —</option>
+                    {% for tool_id, tool in ai_tools.items() %}
+                    <option value="{{ tool_id }}">{{ tool.name }} ({{ tool.type|replace('_', ' ')|title }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="tool-result" class="tool-result hidden"></div>
+        </div>
+    </section>
+
+    <!-- Copyright Registration Resources -->
+    <section class="legal-section">
+        <h2>📋 Copyright Registration</h2>
+        <p>Register your copyright to get maximum legal protection. Here are your options:</p>
+
+        <div class="resource-grid">
+            {% for res_id, res in resources.items() %}
+            <div class="resource-card">
+                <h3>{{ res.name }}</h3>
+                <p>{{ res.description }}</p>
+                <div class="resource-meta">
+                    <span class="resource-cost">💰 {{ res.cost }}</span>
+                    <span class="resource-time">⏱️ {{ res.processing_time }}</span>
+                </div>
+                <a href="{{ res.url }}" target="_blank" class="btn btn-sm">Visit →</a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- AI Artist Rights -->
+    <section class="legal-section">
+        <h2>🤖 AI Artist Rights</h2>
+        <div class="info-box">
+            <p><strong>Your music is your music.</strong> Whether you use Suno, Udio, AIVA, or any other AI tool,
+            you directed the creation. You own the creative vision. Music Bank protects your rights.</p>
+        </div>
+        <a href="/ai-rights" class="btn">Read Full AI Artist Rights Guide →</a>
+    </section>
+
+    <!-- DMCA -->
+    <section class="legal-section">
+        <h2>🛡️ DMCA Protection</h2>
+        <p>Music Bank provides DMCA takedown and counter-notice support for all artists.</p>
+        <a href="/dmca" class="btn">DMCA Forms & Info →</a>
+    </section>
+
+    <!-- Sync Licensing -->
+    <section class="legal-section">
+        <h2>🎬 Sync Licensing</h2>
+        <p>Make your music available for film, TV, ads, games, and YouTube creators.</p>
+        <a href="/licensing" class="btn">Browse Licensing Marketplace →</a>
+    </section>
+</div>
+
+<style>
+.legal-page { max-width: 900px; margin: 0 auto; }
+.legal-section {
+    background: var(--bg-card); border-radius: var(--radius); padding: 24px;
+    border: 1px solid var(--border); margin-bottom: 24px;
+}
+.legal-section h2 { font-size: 20px; margin-bottom: 12px; }
+.resource-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+.resource-card {
+    background: var(--bg); border-radius: var(--radius-sm); padding: 16px;
+    border: 1px solid var(--border);
+}
+.resource-card h3 { font-size: 16px; margin-bottom: 8px; }
+.resource-meta { display: flex; gap: 12px; margin: 12px 0; font-size: 13px; color: var(--text-muted); }
+.tool-checker { margin-top: 16px; }
+.tool-result {
+    margin-top: 12px; padding: 16px; border-radius: var(--radius-sm);
+    background: var(--bg); border: 1px solid var(--border);
+}
+.tool-result.safe { border-color: var(--green); }
+.tool-result.warning { border-color: var(--yellow); }
+.tool-result.danger { border-color: var(--red); }
+.info-box {
+    background: rgba(124, 92, 252, 0.1); border: 1px solid var(--accent);
+    border-radius: var(--radius-sm); padding: 16px; margin: 12px 0;
+}
+</style>
+
+<script>
+const AI_TOOLS = {{ ai_tools|tojson }};
+
+function checkTool() {
+    const toolId = document.getElementById('tool-select').value;
+    const result = document.getElementById('tool-result');
+    if (!toolId) { result.classList.add('hidden'); return; }
+
+    const tool = AI_TOOLS[toolId];
+    if (!tool) return;
+
+    let statusClass = 'safe';
+    let statusIcon = '✅';
+    let message = '';
+
+    if (tool.commercial_license) {
+        statusClass = 'safe';
+        statusIcon = '✅';
+        message = `<strong>${tool.name}</strong> allows commercial use. You can monetize your music on Music Bank.`;
+        if (tool.type === 'music_generation') {
+            message += `<br><br><strong>Tip:</strong> Make sure you're on a paid plan. Free tiers may not grant commercial rights.`;
+        }
+    } else {
+        statusClass = 'danger';
+        statusIcon = '⚠️';
+        message = `<strong>${tool.name}</strong> does NOT allow commercial use. You cannot monetize on Music Bank until you upgrade or switch tools.`;
+    }
+
+    result.className = `tool-result ${statusClass}`;
+    result.innerHTML = `<p>${statusIcon} ${message}</p><p class="text-muted text-sm">Type: ${tool.type.replace('_', ' ')} | <a href="${tool.url}" target="_blank">Visit ${tool.name} →</a></p>`;
+    result.classList.remove('hidden');
+}
+</script>
+{% endblock %}

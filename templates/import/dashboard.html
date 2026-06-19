@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Import Music — Music Bank{% endblock %}
+
+{% block content %}
+<div class="import-page">
+    <h1>📥 Import Music</h1>
+    <p class="text-muted">Pull your existing music from YouTube, Spotify, Apple Music, and more. All imported tracks are automatically protected.</p>
+
+    <!-- Connected Platforms -->
+    <section class="import-section">
+        <h2>Connected Platforms</h2>
+        <div class="platform-cards">
+            {% for platform_id, platform in platforms.items() %}
+            <div class="platform-card connected">
+                <span class="platform-icon">
+                    {% if platform.platform == 'youtube' %}▶️
+                    {% elif platform.platform == 'spotify' %}🎧
+                    {% elif platform.platform == 'apple_music' %}🍎
+                    {% elif platform.platform == 'soundcloud' %}☁️
+                    {% elif platform.platform == 'bandcamp' %}🏕️
+                    {% else %}🔗{% endif %}
+                </span>
+                <div class="platform-info">
+                    <strong>{{ platform.platform|replace('_', ' ')|title }}</strong>
+                    <a href="{{ platform.url }}" target="_blank" class="platform-url">{{ platform.url[:50] }}...</a>
+                    {% if platform.follower_count %}
+                    <span class="platform-followers">{{ platform.follower_count }} followers</span>
+                    {% endif %}
+                </div>
+                <span class="badge badge-green">✓ Connected</span>
+            </div>
+            {% endfor %}
+
+            {% if not platforms %}
+            <div class="empty-state">
+                <p>No platforms connected yet. Connect below to import your music.</p>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Import from YouTube -->
+    <section class="import-section">
+        <h2>▶️ Import from YouTube</h2>
+        <p>Import all videos from your YouTube channel. Each video becomes a track on Music Bank.</p>
+        <form method="post" action="/import/youtube" class="import-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>YouTube Channel ID</label>
+                    <input type="text" name="channel_id" placeholder="UC... (from youtube.com/channel/UC...)">
+                </div>
+                <div class="form-group">
+                    <label>OR YouTube Username</label>
+                    <input type="text" name="username" placeholder="@yourchannel">
+                </div>
+            </div>
+            <button type="submit" class="btn">Import from YouTube</button>
+        </form>
+    </section>
+
+    <!-- Import from Spotify -->
+    <section class="import-section">
+        <h2>🎧 Import from Spotify</h2>
+        <p>Import all tracks from your Spotify artist profile.</p>
+        <form method="post" action="/import/spotify" class="import-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Spotify Artist ID</label>
+                    <input type="text" name="spotify_artist_id" placeholder="From open.spotify.com/artist/...">
+                </div>
+                <div class="form-group">
+                    <label>OR Artist Name</label>
+                    <input type="text" name="spotify_artist_name" placeholder="Your artist name on Spotify">
+                </div>
+            </div>
+            <button type="submit" class="btn">Import from Spotify</button>
+        </form>
+    </section>
+
+    <!-- Import from Apple Music -->
+    <section class="import-section">
+        <h2>🍎 Import from Apple Music</h2>
+        <p>Import all tracks from your Apple Music artist profile.</p>
+        <form method="post" action="/import/apple-music" class="import-form">
+            <div class="form-group">
+                <label>Apple Music Artist Name</label>
+                <input type="text" name="apple_artist_name" placeholder="Your artist name on Apple Music">
+            </div>
+            <button type="submit" class="btn">Import from Apple Music</button>
+        </form>
+    </section>
+
+    <!-- DistroKid Migration -->
+    <section class="import-section">
+        <h2>🔄 Migrate from DistroKid</h2>
+        <p>Import all your DistroKid releases. Paste your DistroKid catalog CSV or list your releases.</p>
+        <form method="post" action="/import/distrokid" class="import-form">
+            <div class="form-group">
+                <label>DistroKid CSV Export</label>
+                <textarea name="csv_content" rows="6" placeholder="Paste your DistroKid catalog CSV here...
+
+Format: Song Title, Album Title, UPC, ISRC, Release Date, Spotify URL, Apple Music URL, ..."></textarea>
+            </div>
+            <button type="submit" class="btn">Import from DistroKid</button>
+        </form>
+        <div class="migration-info">
+            <p class="text-muted text-sm">💡 <strong>Tip:</strong> After importing, you can cancel your DistroKid subscription ($22.99/year). Music Bank replaces DistroKid with no subscription fees.</p>
+        </div>
+    </section>
+
+    <!-- Import History -->
+    {% if import_history %}
+    <section class="import-section">
+        <h2>Import History</h2>
+        <table class="data-table">
+            <thead><tr><th>Platform</th><th>Tracks</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+                {% for h in import_history %}
+                <tr>
+                    <td>{{ h.platform|title }}</td>
+                    <td>{{ h.items_imported }}</td>
+                    <td>
+                        {% if h.status == 'completed' %}<span class="badge badge-green">✓ Completed</span>
+                        {% elif h.status == 'failed' %}<span class="badge badge-red">✗ Failed</span>
+                        {% else %}<span class="badge badge-yellow">⏳ {{ h.status }}</span>{% endif %}
+                    </td>
+                    <td>{{ h.created_at[:10] if h.created_at else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
+    <!-- Stats -->
+    <section class="import-section">
+        <h2>Your Music</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-value">{{ track_count }}</span>
+                <span class="stat-label">Tracks on Music Bank</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ platforms|length }}</span>
+                <span class="stat-label">Platforms Connected</span>
+            </div>
+        </div>
+    </section>
+</div>
+
+<style>
+.import-page { max-width: 900px; margin: 0 auto; }
+.import-section {
+    background: var(--bg-card); border-radius: var(--radius); padding: 24px;
+    border: 1px solid var(--border); margin-bottom: 24px;
+}
+.import-section h2 { font-size: 18px; margin-bottom: 12px; }
+.import-form { margin-top: 16px; }
+.platform-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.platform-card {
+    display: flex; align-items: center; gap: 16px; padding: 16px;
+    background: var(--bg); border-radius: var(--radius-sm); border: 1px solid var(--border);
+}
+.platform-card.connected { border-color: var(--green); }
+.platform-icon { font-size: 28px; width: 40px; text-align: center; }
+.platform-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.platform-url { font-size: 13px; color: var(--text-muted); }
+.platform-followers { font-size: 12px; color: var(--text-dim); }
+.migration-info {
+    background: rgba(124, 92, 252, 0.1); border: 1px solid var(--accent);
+    border-radius: var(--radius-sm); padding: 12px; margin-top: 12px;
+}
+</style>
+{% endblock %}

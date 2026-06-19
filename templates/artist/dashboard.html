@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}Artist Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <div class="dashboard-sidebar">
+        <div class="artist-card-mini">
+            <div class="avatar">{{ artist.display_name[0] }}</div>
+            <strong>{{ artist.display_name }}</strong>
+            <span class="text-muted">@{{ artist.username }}</span>
+            {% if artist.genre %}<span class="badge">{{ artist.genre }}</span>{% endif %}
+        </div>
+        <nav class="dashboard-nav">
+            <a href="/artists/dashboard" class="{{ 'active' if active_tab != 'bank' }}">📊 Overview</a>
+            <a href="/artists/upload">⬆️ Upload Track</a>
+            <a href="/bank/" class="{{ 'active' if active_tab == 'bank' }}">🏦 Bank Account</a>
+            <a href="/artists/{{ artist.username }}">👤 Public Profile</a>
+        </nav>
+    </div>
+
+    <div class="dashboard-main">
+        {% if active_tab == 'bank' %}
+        <!-- ==================== BANK TAB ==================== -->
+        <h2>🏦 Bank Account</h2>
+
+        <!-- Multi-Rail Balances -->
+        <div class="bank-summary">
+            <div class="bank-card">
+                <span class="bank-label">USD Balance (Stripe/Cash)</span>
+                <span class="bank-balance">${{ "%.2f"|format(balances.balance_cents / 100) }}</span>
+            </div>
+            <div class="bank-card">
+                <span class="bank-label">USDC (Base)</span>
+                <span class="bank-value">{{ "%.2f"|format(balances.balance_usdc) }} USDC</span>
+            </div>
+            <div class="bank-card">
+                <span class="bank-label">$MIO (Virtuals)</span>
+                <span class="bank-value">{{ "%.2f"|format(balances.balance_mio) }} MIO</span>
+            </div>
+            <div class="bank-card">
+                <span class="bank-label">Bitcoin</span>
+                <span class="bank-value">{{ "%.8f"|format(balances.balance_btc) }} BTC</span>
+            </div>
+        </div>
+
+        <!-- Payout Methods -->
+        <h3>Payout Methods</h3>
+        <p class="text-muted text-sm">Choose how you want to receive earnings. You can set up multiple methods.</p>
+
+        <div class="payout-methods">
+            <!-- Stripe Connect -->
+            <div class="payout-method-card {{ 'connected' if balances.stripe_onboarding_complete }}">
+                <div class="pm-header">
+                    <span class="pm-icon">💳</span>
+                    <strong>Stripe Connect</strong>
+                    {% if balances.stripe_onboarding_complete %}
+                        <span class="badge badge-green">Connected</span>
+                    {% else %}
+                        <span class="badge badge-yellow">Setup Required</span>
+                    {% endif %}
+                </div>
+                <p class="text-muted text-sm">Receive USD directly to your bank account. Most countries supported.</p>
+                {% if not balances.stripe_onboarding_complete %}
+                <a href="/bank/stripe/onboarding" class="btn btn-sm">Connect Stripe</a>
+                {% else %}
+                <span class="text-muted text-sm">✓ Ready to receive payouts</span>
+                {% endif %}
+            </div>
+
+            <!-- Base / USDC -->
+            <div class="payout-method-card {{ 'connected' if balances.base_wallet_address }}">
+                <div class="pm-header">
+                    <span class="pm-icon">🔵</span>
+                    <strong>Base / USDC</strong>
+                    {% if balances.base_wallet_address %}
+                        <span class="badge badge-green">Connected</span>
+                    {% else %}
+                        <span class="badge badge-gray">Not Set Up</span>
+                    {% endif %}
+                </div>
+                <p class="text-muted text-sm">Receive USDC on Base L2. Convert to fiat via Coinbase.</p>
+                {% if not balances.base_wallet_address %}
+                <form onsubmit="return addPayoutMethod('coinbase_usdc')" class="pm-form">
+                    <input type="text" id="eth_wallet" placeholder="0x... (Base/Ethereum address)" required>
+                    <button type="submit" class="btn btn-sm">Add Wallet</button>
+                </form>
+                {% else %}
+                <span class="text-muted text-sm">✓ {{ balances.base_wallet_address[:10] }}...{{ balances.base_wallet_address[-6:] }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Bitcoin -->
+            <div class="payout-method-card {{ 'connected' if balances.btc_address }}">
+                <div class="pm-header">
+                    <span class="pm-icon">₿</span>
+                    <strong>Bitcoin</strong>
+                    {% if balances.btc_address %}
+                        <span class="badge badge-green">Connected</span>
+                    {% else %}
+                        <span class="badge badge-gray">Not Set Up</span>
+                    {% endif %}
+                </div>
+                <p class="text-muted text-sm">Receive BTC to your wallet. Via Strike.</p>
+                {% if not balances.btc_address %}
+                <form onsubmit="return addPayoutMethod('bitcoin')" class="pm-form">
+                    <input type="text" id="btc_address" placeholder="bc1... or 1... or 3..." required>
+                    <button type="submit" class="btn btn-sm">Add Address</button>
+                </form>
+                {% else %}
+                <span class="text-muted text-sm">✓ {{ balances.btc_address[:12] }}...</span>
+                {% endif %}
+            </div>
+
+            <!-- Cash App -->
+            <div class="payout-method-card {{ 'connected' if balances.cashapp_cashtag }}">
+                <div class="pm-header">
+                    <span class="pm-icon">💵</span>
+                    <strong>Cash App</strong>
+                    {% if balances.cashapp_cashtag %}
+                        <span class="badge badge-green">Connected</span>
+                    {% else %}
+                        <span class="badge badge-gray">Not Set Up</span>
+                    {% endif %}
+                </div>
+                <p class="text-muted text-sm">Receive USD via Cash App. US only.</p>
+                {% if not balances.cashapp_cashtag %}
+                <form onsubmit="return addPayoutMethod('cashapp')" class="pm-form">
+                    <input type="text" id="cashapp_cashtag" placeholder="YourCashtag" required>
+                    <button type="submit" class="btn btn-sm">Add Cash App</button>
+                </form>
+                {% else %}
+                <span class="text-muted text-sm">✓ ${{ balances.cashapp_cashtag }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Request Payout -->
+        <h3>Request Payout</h3>
+        <div class="payout-request-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Amount (USD)</label>
+                    <input type="number" id="payout-amount" min="5" step="0.01" placeholder="5.00">
+                </div>
+                <div class="form-group">
+                    <label>Payout Method</label>
+                    <select id="payout-method">
+                        <option value="stripe_connect">💳 Stripe Connect → Bank</option>
+                        <option value="coinbase_usdc">🔵 Coinbase → USDC</option>
+                        <option value="bitcoin">₿ Bitcoin → Wallet</option>
+                        <option value="cashapp">💵 Cash App</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn" onclick="requestPayout()">Request Payout</button>
+            <p class="text-muted text-sm">Minimum $5.00. Payouts processed within 3-5 business days.</p>
+        </div>
+
+        <!-- Recent Deposits -->
+        {% if recent_deposits %}
+        <h3>Recent Fan Deposits</h3>
+        <table class="data-table">
+            <thead><tr><th>Rail</th><th>Track</th><th>Amount</th><th>Fee</th><th>You Received</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+                {% for d in recent_deposits[:15] %}
+                <tr>
+                    <td>
+                        {% if d.payment_rail == 'stripe' %}💳 Stripe
+                        {% elif d.payment_rail == 'usdc_base' %}🔵 USDC
+                        {% elif d.payment_rail == 'virtuals_mio' %}🟣 $MIO
+                        {% else %}{{ d.payment_rail }}{% endif %}
+                    </td>
+                    <td>{% if d.track_title %}<a href="/tracks/{{ d.track_id }}">{{ d.track_title }}</a>{% else %}—{% endif %}</td>
+                    <td>
+                        {% if d.payment_rail == 'usdc_base' %}{{ d.amount_usdc }} USDC
+                        {% elif d.payment_rail == 'virtuals_mio' %}{{ d.amount_mio }} MIO
+                        {% else %}${{ "%.2f"|format(d.amount_cents / 100) }}{% endif %}
+                    </td>
+                    <td class="text-negative">- ${{ "%.2f"|format(d.platform_fee_cents / 100) }}</td>
+                    <td class="text-positive">${{ "%.2f"|format(d.artist_payout_cents / 100) }}</td>
+                    <td>
+                        {% if d.status == 'completed' %}<span class="badge badge-green">✓ Completed</span>
+                        {% elif d.status == 'pending' %}<span class="badge badge-yellow">⏳ Pending</span>
+                        {% elif d.status == 'failed' %}<span class="badge badge-red">✗ Failed</span>
+                        {% else %}{{ d.status }}{% endif %}
+                    </td>
+                    <td>{{ d.created_at[:10] if d.created_at else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <!-- Payout History -->
+        {% if payouts %}
+        <h3>Payout History</h3>
+        <table class="data-table">
+            <thead><tr><th>Method</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+            <tbody>
+                {% for p in payouts[:10] %}
+                <tr>
+                    <td>{{ p.payout_method }}</td>
+                    <td>${{ "%.2f"|format(p.amount_cents / 100) }}</td>
+                    <td>
+                        {% if p.status == 'completed' %}<span class="badge badge-green">✓</span>
+                        {% elif p.status == 'processing' %}<span class="badge badge-yellow">⏳</span>
+                        {% elif p.status == 'pending' %}<span class="badge badge-gray">Pending</span>
+                        {% elif p.status == 'failed' %}<span class="badge badge-red">✗</span>
+                        {% else %}{{ p.status }}{% endif %}
+                    </td>
+                    <td>{{ p.created_at[:10] if p.created_at else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% else %}
+        <!-- ==================== OVERVIEW TAB ==================== -->
+        <h2>📊 Dashboard Overview</h2>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-value">{{ tracks|length }}</span>
+                <span class="stat-label">Tracks</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ artist.total_plays }}</span>
+                <span class="stat-label">Total Plays</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">{{ followers }}</span>
+                <span class="stat-label">Followers</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-value">${{ "%.2f"|format(artist.balance_cents / 100) }}</span>
+                <span class="stat-label">Balance</span>
+            </div>
+        </div>
+
+        <h3>Your Tracks</h3>
+        {% if tracks %}
+        <table class="data-table">
+            <thead><tr><th>Title</th><th>Genre</th><th>Plays</th><th>Likes</th><th>Deposits</th><th>Earnings</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for t in tracks %}
+                <tr>
+                    <td><a href="/tracks/{{ t.id }}">{{ t.title }}</a></td>
+                    <td>{{ t.genre|default('—') }}</td>
+                    <td>{{ t.plays }}</td>
+                    <td>{{ t.likes }}</td>
+                    <td>{{ t.deposits }}</td>
+                    <td>${{ "%.2f"|format(t.earnings_cents / 100) }}</td>
+                    <td><a href="/tracks/{{ t.id }}" class="btn btn-sm">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <p>No tracks yet. <a href="/artists/upload">Upload your first track</a> to start banking music.</p>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addPayoutMethod(methodType) {
+    const form = new FormData();
+    form.append('method_type', methodType);
+
+    if (methodType === 'coinbase_usdc') {
+        const wallet = document.getElementById('eth_wallet').value.trim();
+        if (!wallet.startsWith('0x')) { alert('Valid Ethereum/Base address required (0x...)'); return false; }
+        form.append('wallet_address', wallet);
+    } else if (methodType === 'bitcoin') {
+        const addr = document.getElementById('btc_address').value.trim();
+        if (!addr) { alert('Bitcoin address required'); return false; }
+        form.append('btc_address', addr);
+    } else if (methodType === 'cashapp') {
+        const tag = document.getElementById('cashapp_cashtag').value.trim().replace('$', '');
+        if (!tag) { alert('Cash App cashtag required'); return false; }
+        form.append('cashtag', tag);
+    }
+
+    const resp = await fetch('/bank/payout-methods/add', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+        if (data.onboarding_url) {
+            window.location.href = data.onboarding_url;
+        } else {
+            alert(data.message);
+            location.reload();
+        }
+    } else {
+        alert('Error: ' + (data.detail || data.message || 'Unknown error'));
+    }
+    return false;
+}
+
+async function requestPayout() {
+    const amount = parseFloat(document.getElementById('payout-amount').value);
+    const method = document.getElementById('payout-method').value;
+    if (!amount || amount < 5) { alert('Minimum payout is $5.00'); return; }
+
+    const form = new FormData();
+    form.append('amount', amount.toString());
+    form.append('payout_method', method);
+
+    const resp = await fetch('/bank/payout/request', { method: 'POST', body: form });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+        alert(data.message);
+        location.reload();
+    } else {
+        alert('Error: ' + (data.detail || data.message || 'Unknown error'));
+    }
+}
+</script>
+{% endblock %}

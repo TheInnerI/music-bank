@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Terms of Service — Music Bank{% endblock %}
+
+{% block content %}
+<div class="legal-page">
+    <h1>Terms of Service</h1>
+    <p class="text-muted">Last updated: {{ terms.last_updated }}</p>
+
+    <div class="toc">
+        <h2>Table of Contents</h2>
+        {% for section_id, section in terms.sections.items() %}
+        <a href="#{{ section_id }}" class="toc-link">{{ section.title }}</a>
+        {% endfor %}
+    </div>
+
+    {% for section_id, section in terms.sections.items() %}
+    <section class="legal-section" id="{{ section_id }}">
+        <h2>{{ section.title }}</h2>
+        <p>{{ section.content }}</p>
+    </section>
+    {% endfor %}
+</div>
+
+<style>
+.legal-page { max-width: 800px; margin: 0 auto; }
+.toc {
+    background: var(--bg-card); border-radius: var(--radius); padding: 20px;
+    border: 1px solid var(--border); margin-bottom: 32px;
+}
+.toc h2 { font-size: 16px; margin-bottom: 12px; }
+.toc-link {
+    display: block; padding: 6px 0; color: var(--accent) !important;
+    font-size: 14px;
+}
+.legal-section {
+    background: var(--bg-card); border-radius: var(--radius); padding: 24px;
+    border: 1px solid var(--border); margin-bottom: 16px;
+}
+.legal-section h2 { font-size: 18px; margin-bottom: 12px; }
+.legal-section p { color: var(--text-muted); line-height: 1.7; }
+</style>
+{% endblock %}

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile — {{ artist.display_name }}{% endblock %}
+
+{% block content %}
+<div class="profile-edit-page">
+    <h1>✏️ Edit Profile</h1>
+
+    <form method="post" action="/artists/{{ artist.username }}/edit" class="profile-edit-form">
+        <!-- Basic Info -->
+        <section class="edit-section">
+            <h2>Basic Info</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Display Name</label>
+                    <input type="text" name="display_name" value="{{ artist.display_name }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" value="{{ artist.username }}" disabled class="disabled-input">
+                    <span class="text-muted text-sm">Username cannot be changed</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Bio</label>
+                <textarea name="bio" rows="4" placeholder="Tell the world about your music...">{{ artist.bio }}</textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Primary Genre</label>
+                    <input type="text" name="genre" value="{{ artist.genre }}" placeholder="Electronic, Hip Hop, Rock...">
+                </div>
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" name="location" value="{{ artist.location }}" placeholder="City, Country">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Website</label>
+                <input type="url" name="website_url" value="{{ artist.website_url }}" placeholder="https://yourwebsite.com">
+            </div>
+        </section>
+
+        <!-- Platform Links -->
+        <section class="edit-section">
+            <h2>Platform Links</h2>
+            <p class="text-muted">Link your profiles so fans can find you everywhere. These are used for vector embeddings and the "Similar Artists" feature.</p>
+
+            <div class="platform-inputs">
+                <div class="platform-input">
+                    <span class="platform-icon">▶️</span>
+                    <div class="platform-fields">
+                        <label>YouTube Channel URL</label>
+                        <input type="url" name="youtube_url" value="{{ platforms.youtube.url|default('') }}" placeholder="https://youtube.com/@yourchannel">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">🎧</span>
+                    <div class="platform-fields">
+                        <label>Spotify Artist URL</label>
+                        <input type="url" name="spotify_url" value="{{ platforms.spotify.url|default('') }}" placeholder="https://open.spotify.com/artist/...">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">🍎</span>
+                    <div class="platform-fields">
+                        <label>Apple Music URL</label>
+                        <input type="url" name="apple_music_url" value="{{ platforms.apple_music.url|default('') }}" placeholder="https://music.apple.com/artist/...">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">☁️</span>
+                    <div class="platform-fields">
+                        <label>SoundCloud URL</label>
+                        <input type="url" name="soundcloud_url" value="{{ platforms.soundcloud.url|default('') }}" placeholder="https://soundcloud.com/yourname">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">🏕️</span>
+                    <div class="platform-fields">
+                        <label>Bandcamp URL</label>
+                        <input type="url" name="bandcamp_url" value="{{ platforms.bandcamp.url|default('') }}" placeholder="https://yourname.bandcamp.com">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">🌊</span>
+                    <div class="platform-fields">
+                        <label>Tidal URL</label>
+                        <input type="url" name="tidal_url" value="{{ platforms.tidal.url|default('') }}" placeholder="https://tidal.com/artist/...">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">📦</span>
+                    <div class="platform-fields">
+                        <label>Amazon Music URL</label>
+                        <input type="url" name="amazon_music_url" value="{{ platforms.amazon_music.url|default('') }}" placeholder="https://music.amazon.com/artists/...">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">📸</span>
+                    <div class="platform-fields">
+                        <label>Instagram URL</label>
+                        <input type="url" name="instagram_url" value="{{ artist.instagram_url }}" placeholder="https://instagram.com/yourname">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">🐦</span>
+                    <div class="platform-fields">
+                        <label>Twitter/X URL</label>
+                        <input type="url" name="twitter_url" value="{{ artist.twitter_url }}" placeholder="https://twitter.com/yourname">
+                    </div>
+                </div>
+
+                <div class="platform-input">
+                    <span class="platform-icon">🎵</span>
+                    <div class="platform-fields">
+                        <label>TikTok URL</label>
+                        <input type="url" name="tiktok_url" value="{{ artist.tiktok_url }}" placeholder="https://tiktok.com/@yourname">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Payout Methods -->
+        <section class="edit-section">
+            <h2>Payout Methods</h2>
+            <p class="text-muted">Set up how you want to receive earnings. Go to <a href="/bank/">Bank Dashboard</a> to configure.</p>
+            <a href="/bank/" class="btn btn-sm">🏦 Manage Payout Methods</a>
+        </section>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-lg">Save Profile</button>
+            <a href="/artists/{{ artist.username }}" class="btn btn-lg btn-ghost">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
