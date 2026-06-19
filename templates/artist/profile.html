@@ -242,9 +242,18 @@
         <p class="text-muted">Choose how you want to support this artist.</p>
         <input type="hidden" id="deposit-track-id" value="0">
         <div class="deposit-rails">
-            <button class="deposit-rail-tab active" onclick="switchDepositRail('stripe')" id="rail-tab-stripe">💳 Stripe</button>
-            <button class="deposit-rail-tab" onclick="switchDepositRail('usdc')" id="rail-tab-usdc">🔵 USDC</button>
-            <button class="deposit-rail-tab" onclick="switchDepositRail('mio')" id="rail-tab-mio">🟣 $MIO</button>
+            <button class="deposit-rail-tab active" onclick="switchDepositRail('stripe')" id="rail-tab-stripe">
+                <svg class="payment-logo" viewBox="0 0 60 25" fill="none"><path d="M59.64 14.28h-8.06c.19 1.93 1.6 2.55 3.2 2.55 1.64 0 2.96-.37 4.05-.95v3.32a12.3 12.3 0 0 1-4.56.88c-4.01 0-6.83-2.5-6.83-7.08 0-4.44 2.73-7.13 6.32-7.13 3.57 0 5.96 2.55 5.96 7.02 0 .42-.04.83-.08 1.23zm-4.28-5.56c0-1.39-.7-2.34-1.93-2.34-1.22 0-2.04.95-2.2 2.34h4.13zM40.84 20.08c-1.44 0-2.34-.63-2.9-1.08l-.02 5.36-4.28.93V6.72h3.76l.2 1.22c.63-.8 1.7-1.52 3.2-1.52 2.76 0 4.88 2.5 4.88 6.92 0 4.84-2.14 7.74-5.84 7.74zm-.93-11.16c-.95 0-1.52.34-1.93.75l.04 6.12c.36.34.9.7 1.9.7 1.52 0 2.55-1.64 2.55-4.34 0-2.55-1.05-3.23-2.55-3.23zM28.24 6.72h4.28v13.12h-4.28V6.72zm0-4.28h4.28v3.2h-4.28v-3.2zM22.44 3.44l-4.18.9v3.38h-2.04v3.44h2.04v5.56c0 2.7 1.3 4.05 4.2 4.05 1.22 0 2.14-.24 2.6-.48v-3.44c-.42.14-2.55.75-2.55-1.22V10.1h2.55V6.66h-2.55l-.07-3.22zM12.24 8.56c-1.1 0-1.64.54-1.64 1.44 0 1.02 1.12 1.36 2.62 1.84 2.36.76 3.96 1.76 3.96 4.08 0 2.96-2.34 4.6-5.6 4.6-1.44 0-2.96-.32-4.28-.9v-3.64c1.44.76 3.2 1.34 4.28 1.34 1.18 0 1.84-.5 1.84-1.4 0-1.1-1.22-1.52-2.8-2.04-2.34-.78-3.76-1.84-3.76-4.04 0-2.8 2.16-4.54 5.36-4.54 1.34 0 2.68.24 3.76.7l-.74 3.5c-.9-.44-2.1-.8-3.0-.8z" fill="#635BFF"/></svg>
+                <span>Stripe</span>
+            </button>
+            <button class="deposit-rail-tab" onclick="switchDepositRail('usdc')" id="rail-tab-usdc">
+                <svg class="payment-logo" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#2775CA"/><path d="M12.2 11.3c0-1.2-.7-1.6-2.1-1.8-1-.1-1.2-.4-1.2-.9 0-.4.3-.8 1-.8.6 0 1 .2 1.2.7.1.2.3.3.5.3h.8c.3 0 .5-.2.5-.5-.1-.8-.6-1.4-1.5-1.6V6.2c0-.3-.2-.5-.5-.5h-.7c-.3 0-.5.2-.5.5v.5c-1 .2-1.6.9-1.6 1.8 0 1.1.7 1.5 2.1 1.7 1 .2 1.2.5 1.2 1 0 .5-.4.9-1.1.9-.8 0-1.1-.3-1.3-.8-.1-.2-.3-.3-.5-.3h-.8c-.3 0-.5.2-.5.5.1.9.7 1.5 1.6 1.7v.5c0 .3.2.5.5.5h.7c.3 0 .5-.2.5-.5v-.5c1-.2 1.7-1 1.7-2z" fill="white"/><path d="M7.5 14.5c-2.2-1.6-3.3-4.5-2.5-7.2.4-1.4 1.3-2.6 2.5-3.4.3-.2.4-.5.4-.8v-.6c0-.3-.2-.5-.5-.5-.1 0-.3 0-.4.1C4.4 3.5 2.8 6.2 2.8 9.3c0 3.1 1.6 5.8 4.2 7.2.1.1.2.1.3.1.2 0 .4-.1.5-.3.1-.2.1-.5-.1-.8-.1-.1-.2-.2-.3-.3-.1-.1-.2-.2-.4-.3zM12.5 5.5c2.2 1.6 3.3 4.5 2.5 7.2-.4 1.4-1.3 2.6-2.5 3.4-.3.2-.4.5-.4.8v.6c0 .3.2.5.5.5.1 0 .3 0 .4-.1 2.6-1.4 4.2-4.1 4.2-7.2 0-3.1-1.6-5.8-4.2-7.2-.1-.1-.2-.1-.3-.1-.2 0-.4.1-.5.3-.1.2-.1.5.1.8.1.1.2.2.3.3.1.1.2.2.4.3z" fill="white" fill-opacity="0.6"/></svg>
+                <span>USDC</span>
+            </button>
+            <button class="deposit-rail-tab" onclick="switchDepositRail('mio')" id="rail-tab-mio">
+                <svg class="payment-logo" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="12" fill="url(#mio_grad)"/><path d="M12 6L17 9.5V16.5L12 20L7 16.5V9.5L12 6Z" stroke="white" stroke-width="1.5" fill="none"/><circle cx="12" cy="12.75" r="2.25" fill="white"/><defs><linearGradient id="mio_grad" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#8B5CF6"/><stop offset="1" stop-color="#EC4899"/></linearGradient></defs></svg>
+                <span>$MIO</span>
+            </button>
         </div>
         <div id="deposit-rail-stripe" class="deposit-rail-panel">
             <div class="form-group">
