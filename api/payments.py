@@ -30,6 +30,7 @@ class StripeService:
     def __init__(self):
         self.api_key = os.getenv("STRIPE_SECRET_KEY", "")
         self.webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+        self.publishable_key = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
         self.platform_fee_pct = float(os.getenv("PLATFORM_FEE_PCT", "5.0"))
         self._available = bool(self.api_key)
 
