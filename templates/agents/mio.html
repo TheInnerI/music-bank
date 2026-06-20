@@ -212,33 +212,6 @@ async function startEvaluation(tierId) {
     }
 }
 
-        if (data.status === 'ok' || data.status === 'completed') {
-            const jobId = data.job_id || 'completed';
-            const result = data.result;
-
-            // Add to list with results immediately
-            addEvaluationToList(jobId, tierId, 'completed', result);
-
-            const score = result ? result.score || result.overall_score || 'N/A' : 'N/A';
-            const feedback = result ? result.feedback || 'Evaluation complete.' : 'Evaluation complete.';
-            alert(`Evaluation complete!\n\nTrack: ${trackTitle}\nTier: ${tierId}\nScore: ${score}/100\n\n${feedback}`);
-        } else if (data.status === 'error') {
-            alert('Error: ' + (data.message || 'Unknown error'));
-        } else {
-            // Pending status — start polling
-            const jobId = data.job_id || 'pending';
-            addEvaluationToList(jobId, tierId, 'pending');
-            pollJobStatus(jobId);
-            alert(`Job created!\nTrack: ${trackTitle}\nTier: ${tierId}\nJob ID: ${jobId}`);
-        }
-    } catch (e) {
-        alert('Error: ' + e.message);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Start Evaluation';
-    }
-}
-
 function addEvaluationToList(jobId, tierId, status, result) {
     const list = document.getElementById('eval-list');
     if (!list) return;
