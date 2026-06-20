@@ -67,60 +67,67 @@ async def new_releases(request: Request):
 @router.get("/search")
 async def search_page(request: Request):
     """Search with platform tabs + TurboVec semantic search."""
-    q = request.query_params.get("q", "").strip()
-    platform = request.query_params.get("platform", "all").lower()
-    tracks = []
-    semantic_results = []
-    counts = {"all": 0, "youtube": 0, "spotify": 0, "soundcloud": 0, "bandcamp": 0}
-
-    db = await get_db()
     try:
-        # Count by platform
-        for p in counts:
-            if p == "all":
-                cursor = await db.execute("SELECT COUNT(*) FROM tracks WHERE is_published=1")
-            else:
-                cursor = await db.execute("SELECT COUNT(*) FROM tracks WHERE is_published=1 AND audio_url LIKE ?", (f"%{p}%",))
-            counts[p] = (await cursor.fetchone())[0]
+        q = request.query_params.get("q", "").strip()
+        platform = request.query_params.get("platform", "all").lower()
+        tracks = []
+        semantic_results = []
+        counts = {"all": 0, "youtube": 0, "spotify": 0, "soundcloud": 0, "bandcamp": 0}
 
-        if q and len(q) >= 2:
-            # Build query with platform filter
-            query = "SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE t.is_published=1"
-            params = []
-            if platform == "youtube":
-                query += " AND (t.audio_url LIKE '%youtube%' OR t.audio_url LIKE '%youtu.be%')"
-            elif platform == "spotify":
-                query += " AND t.audio_url LIKE '%spotify%'"
-            elif platform == "soundcloud":
-                query += " AND t.audio_url LIKE '%soundcloud%'"
-            elif platform == "bandcamp":
-                query += " AND t.audio_url LIKE '%bandcamp%'"
+        db = await get_db()
+        try:
+            # Count by platform
+            for p in counts:
+                if p == "all":
+                    cursor = await db.execute("SELECT COUNT(*) FROM tracks WHERE is_published=1")
+                else:
+                    cursor = await db.execute("SELECT COUNT(*) FROM tracks WHERE is_published=1 AND audio_url LIKE ?", (f"%{p}%",))
+                counts[p] = (await cursor.fetchone())[0]
 
-            search_term = f"%{q}%"
-            query += " AND (t.title LIKE ? OR t.genre LIKE ? OR a.display_name LIKE ? OR t.mood LIKE ? OR t.description LIKE ?)"
-            params.extend([search_term] * 5)
-            query += " ORDER BY t.plays DESC LIMIT 50"
+            if q and len(q) >= 2:
+                # Build query with platform filter
+                query = "SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE t.is_published=1"
+                params = []
+                if platform == "youtube":
+                    query += " AND (t.audio_url LIKE '%youtube%' OR t.audio_url LIKE '%youtu.be%')"
+                elif platform == "spotify":
+                    query += " AND t.audio_url LIKE '%spotify%'"
+                elif platform == "soundcloud":
+                    query += " AND t.audio_url LIKE '%soundcloud%'"
+                elif platform == "bandcamp":
+                    query += " AND t.audio_url LIKE '%bandcamp%'"
 
-            cursor = await db.execute(query, params)
-            tracks = [dict(r) for r in await cursor.fetchall()]
+                search_term = f"%{q}%"
+                query += " AND (t.title LIKE ? OR t.genre LIKE ? OR a.display_name LIKE ? OR t.mood LIKE ? OR t.description LIKE ?)"
+                params.extend([search_term] * 5)
+                query += " ORDER BY t.plays DESC LIMIT 50"
 
-            # Semantic search fallback via TurboVec
-            if len(tracks) < 10:
-                try:
-                    from api.vectors import search_service
-                    semantic_results = await search_service.search_tracks(q, db, 20)
-                    if platform != "all":
-                        semantic_results = [r for r in semantic_results if platform in r.get("audio_url", "").lower()]
-                except:
-                    pass
-    finally:
-        await db.close()
+                cursor = await db.execute(query, params)
+                tracks = [dict(r) for r in await cursor.fetchall()]
 
-    return respond("search.html", {
-        "request": request, "query": q, "platform": platform,
-        "tracks": tracks, "semantic_results": semantic_results,
-        "counts": counts, "current_artist": await get_current_artist(request),
-    })
+                # Semantic search fallback via TurboVec
+                if len(tracks) < 10:
+                    try:
+                        from api.vectors import search_service
+                        semantic_results = await search_service.search_tracks(q, db, 20)
+                        if platform != "all":
+                            semantic_results = [r for r in semantic_results if platform in r.get("audio_url", "").lower()]
+                    except:
+                        pass
+        finally:
+            await db.close()
+
+        return respond("search.html", {
+            "request": request, "query": q, "platform": platform,
+            "tracks": tracks, "semantic_results": semantic_results,
+            "counts": counts, "current_artist": await get_current_artist(request),
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(f"<h1>Search Error</h1><p>{str(e)}</p><pre>{traceback.format_exc()}</pre>", status_code=500)
 
 
 @router.get("/genre/{genre}")
