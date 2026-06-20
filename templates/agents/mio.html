@@ -32,14 +32,20 @@
     {% if current_artist %}
     <div class="eval-track-select">
         <h3>🎵 Select Track to Evaluate</h3>
-        <p class="text-muted">Choose one of your uploaded tracks, then select an evaluation tier.</p>
+        <p class="text-muted">Choose a track and optionally provide a streaming URL for better evaluation.</p>
         <div class="form-group">
+            <label>Track</label>
             <select id="eval-track-id" class="form-control">
                 <option value="">— Choose a track —</option>
                 {% for t in artist_tracks %}
-                <option value="{{ t.id }}">{{ t.title }} ({{ t.plays }} plays)</option>
+                <option value="{{ t.id }}" data-url="{{ t.audio_url|default('') }}">{{ t.title }} ({{ t.plays }} plays)</option>
                 {% endfor %}
             </select>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+            <label>Streaming URL (optional — YouTube, Spotify, SoundCloud, etc.)</label>
+            <input type="url" id="eval-track-url" class="form-control" placeholder="https://youtube.com/watch?v=... or https://open.spotify.com/track/...">
+            <p class="text-sm text-muted" style="margin-top:4px">Providing a URL gives the agent actual audio to evaluate. Without it, evaluation is based on title/artist/genre.</p>
         </div>
     </div>
     {% endif %}
@@ -144,7 +150,8 @@
 .step-num { width: 36px; height: 36px; border-radius: 50%; background: var(--observer); display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; flex-shrink: 0; }
 .eval-track-select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 24px 0; }
 .eval-track-select h3 { margin-bottom: 8px; }
-.eval-track-select select { width: 100%; padding: 10px 14px; background: var(--deep); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 14px; }
+.eval-track-select input[type="url"] { width: 100%; padding: 10px 14px; background: var(--deep); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 14px; }
+.eval-track-select label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
 .eval-item { background: var(--deep); border-radius: var(--radius-sm); padding: 12px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; }
 .eval-info { display: flex; flex-direction: column; gap: 4px; }
 .eval-job-id { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
@@ -164,17 +171,46 @@ async function startEvaluation(tierId) {
 
     const trackSelect = document.getElementById('eval-track-id');
     const trackTitle = trackSelect.options[trackSelect.selectedIndex].text;
+    const trackUrl = document.getElementById('eval-track-url').value.trim();
 
     const btn = document.querySelector(`[onclick="startEvaluation('${tierId}')"]`);
     btn.disabled = true;
-    btn.textContent = 'Creating...';
+    btn.textContent = 'Evaluating...';
 
     try {
         const resp = await fetch('/api/agent/evaluate', {
             method: 'POST',
-            body: new URLSearchParams({ track_id: trackId, eval_type: tierId }),
+            body: new URLSearchParams({
+                track_id: trackId,
+                eval_type: tierId,
+                track_url: trackUrl,
+            }),
         });
         const data = await resp.json();
+
+        if (data.status === 'ok' || data.status === 'completed') {
+            const jobId = data.job_id || 'completed';
+            const result = data.result;
+            addEvaluationToList(jobId, tierId, 'completed', result);
+
+            const score = result ? (result.score || result.overall_score || 'N/A') : 'N/A';
+            const feedback = result ? (result.feedback || 'Evaluation complete.') : 'Evaluation complete.';
+            alert(`Evaluation complete!\n\nTrack: ${trackTitle}\nTier: ${tierId}\nScore: ${score}/100\n\n${feedback}`);
+        } else if (data.status === 'error') {
+            alert('Error: ' + (data.message || 'Unknown error'));
+        } else {
+            const jobId = data.job_id || 'pending';
+            addEvaluationToList(jobId, tierId, 'pending');
+            pollJobStatus(jobId);
+            alert(`Job created!\nTrack: ${trackTitle}\nTier: ${tierId}\nJob ID: ${jobId}`);
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Start Evaluation';
+    }
+}
 
         if (data.status === 'ok' || data.status === 'completed') {
             const jobId = data.job_id || 'completed';

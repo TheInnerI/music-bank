@@ -48,12 +48,13 @@ async def create_evaluation(request: Request):
     form = await request.form()
     track_id = int(form.get("track_id", 0))
     eval_type = form.get("eval_type", "standard_eval")
+    track_url = form.get("track_url", "").strip()
 
     # Verify track belongs to artist
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, title FROM tracks WHERE id=? AND artist_id=?",
+            "SELECT id, title, audio_url, genre FROM tracks WHERE id=? AND artist_id=?",
             (track_id, current_artist["id"])
         )
         track = await cursor.fetchone()
@@ -63,12 +64,17 @@ async def create_evaluation(request: Request):
     if not track:
         raise HTTPException(status_code=404, detail="Track not found")
 
+    track_url = track.get("audio_url", "") or ""
+    genre = track.get("genre", "") or ""
+
     # Create evaluation job (Virtuals returns results immediately)
     result = await mio_job_service.create_job(
         track_id=track_id,
         track_title=track["title"],
         artist_name=current_artist["display_name"],
         eval_type=eval_type,
+        context=genre,
+        track_url=track_url,
     )
 
     from fastapi.responses import JSONResponse

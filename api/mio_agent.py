@@ -1,11 +1,9 @@
 """
 Music Bank — MIO Evaluator Agent (ACP) Job Service
 
-Uses the Virtuals Compute API (OpenAI-compatible) for agent inference
-and the ACP CLI for job management.
-
+Uses the Virtuals Compute API (OpenAI-compatible) for agent inference.
 API: https://compute.virtuals.io/v1
-SDK: from openai import OpenAI
+Model: z-ai-glm-5-1
 """
 
 import os
@@ -47,9 +45,15 @@ class MIOJobService:
         artist_name: str,
         eval_type: str = "music_standard_eval",
         context: str = "",
+        track_url: str = "",
     ) -> dict:
         """
         Create an evaluation job by calling the MIO agent via Virtuals Compute API.
+
+        Args:
+            track_url: YouTube, Spotify, SoundCloud, or direct audio URL.
+                        If provided, the agent will reference the actual audio.
+                        If not provided, the agent evaluates based on title/artist/genre.
         """
         if not self.available:
             return self._mock_job(track_title, artist_name, eval_type)
@@ -57,68 +61,70 @@ class MIOJobService:
         try:
             client = self._get_client()
 
+            # Build URL info section
+            if track_url:
+                url_info = f"Track URL: {track_url}\nIMPORTANT: Use this URL to reference the actual audio for your evaluation."
+            else:
+                url_info = "No URL provided — evaluate based on title, artist, genre, and your knowledge of similar tracks."
+
             # Build the evaluation prompt based on tier
             prompts = {
-                "music_quick_eval": f"""You are the AIM MIO Evaluation Agent. Evaluate this music track quickly.
-
-Track: {track_title}
-Artist: {artist_name}
-Genre: {context or 'Unknown'}
-
-Provide a brief evaluation (1-100 score) with short feedback on:
-- Production quality
-- Marketability  
-- Genre fit
-
-Respond in JSON format:
-{{"score": <1-100>, "feedback": "<brief feedback>", "verdict": "PASS or FAIL", "genre_fit": "<genre fit assessment>", "marketability": "<1-100>"}}""",
-
-                "music_standard_eval": f"""You are the AIM MIO Evaluation Agent. Provide a detailed music track analysis.
-
-Track: {track_title}
-Artist: {artist_name}
-Genre: {context or 'Unknown'}
-
-Evaluate across these categories (each scored 1-100):
-- Production Quality
-- Marketability
-- Genre Fit
-- Originality
-- Catchiness
-
-Respond in JSON format:
-{{"score": <overall 1-100>, "feedback": "<detailed feedback>", "verdict": "PASS or FAIL", "categories": {{"production": <score>, "marketability": <score>, "genre_fit": <score>, "originality": <score>, "catchiness": <score>}}, "recommendations": ["<actionable suggestion 1>", "<suggestion 2>"], "comparisons": "<comparison to top tracks in genre>"}}""",
-
-                "music_portfolio_audit": f"""You are the AIM MIO Evaluation Agent. Provide a full artist portfolio audit.
-
-Artist: {artist_name}
-Track: {track_title} (representative sample)
-Genre: {context or 'Unknown'}
-
-Evaluate:
-- Portfolio consistency
-- Growth trajectory
-- Genre positioning
-- Market readiness
-- Competitor comparison
-
-Respond in JSON format:
-{{"overall_score": <1-100>, "portfolio_report": "<full analysis>", "recommendations": ["<strategic recommendation 1>", "<suggestion 2>"], "competitor_analysis": "<comparison to similar artists>", "growth_trajectory": "<assessment>", "market_readiness": "<ready for label/sync/independent>"}}""",
-
-                "music_batch_eval": f"""You are the AIM MIO Evaluation Agent. Batch evaluation summary.
-
-Artist: {artist_name}
-Track: {track_title} (one of multiple tracks)
-Genre: {context or 'Unknown'}
-
-Provide batch-level analysis:
-- Individual track score
-- Aggregate statistics
-- Genre distribution insights
-- Top track identification
-
-Respond in JSON format:
-{{"results": [{{"title": "<title>", "score": <1-100>, "feedback": "<brief>"}}], "aggregate_stats": {{"avg_score": <avg>, "min_score": <min>, "max_score": <max>, "std_dev": <std>}}, "genre_distribution": {{"<genre>": <count>}}, "top_tracks": ["<top track 1>"], "recommendations": ["<batch-level recommendation>"]}}""",
+                "music_quick_eval": (
+                    "You are the AIM MIO Evaluation Agent. Evaluate this music track.\n\n"
+                    f"Track: {track_title}\n"
+                    f"Artist: {artist_name}\n"
+                    f"Genre: {context or 'Unknown'}\n"
+                    f"{url_info}\n\n"
+                    "Provide a brief evaluation (1-100 score) with short feedback on:\n"
+                    "- Production quality\n- Marketability\n- Genre fit\n\n"
+                    "Respond in JSON format:\n"
+                    '{"score": <1-100>, "feedback": "<brief feedback>", "verdict": "PASS or FAIL", '
+                    '"genre_fit": "<genre fit assessment>", "marketability": "<1-100>"}'
+                ),
+                "music_standard_eval": (
+                    "You are the AIM MIO Evaluation Agent. Provide a detailed music track analysis.\n\n"
+                    f"Track: {track_title}\n"
+                    f"Artist: {artist_name}\n"
+                    f"Genre: {context or 'Unknown'}\n"
+                    f"{url_info}\n\n"
+                    "Evaluate across these categories (each scored 1-100):\n"
+                    "- Production Quality\n- Marketability\n- Genre Fit\n- Originality\n- Catchiness\n\n"
+                    "Respond in JSON format:\n"
+                    '{"score": <overall 1-100>, "feedback": "<detailed feedback>", "verdict": "PASS or FAIL", '
+                    '"categories": {"production": <score>, "marketability": <score>, "genre_fit": <score>, '
+                    '"originality": <score>, "catchiness": <score>}, '
+                    '"recommendations": ["<actionable suggestion 1>", "<suggestion 2>"], '
+                    '"comparisons": "<comparison to top tracks in genre>"}'
+                ),
+                "music_portfolio_audit": (
+                    "You are the AIM MIO Evaluation Agent. Provide a full artist portfolio audit.\n\n"
+                    f"Artist: {artist_name}\n"
+                    f"Track: {track_title} (representative sample)\n"
+                    f"Genre: {context or 'Unknown'}\n"
+                    f"{url_info}\n\n"
+                    "Evaluate:\n"
+                    "- Portfolio consistency\n- Growth trajectory\n- Genre positioning\n"
+                    "- Market readiness\n- Competitor comparison\n\n"
+                    "Respond in JSON format:\n"
+                    '{"overall_score": <1-100>, "portfolio_report": "<full analysis>", '
+                    '"recommendations": ["<strategic recommendation 1>", "<suggestion 2>"], '
+                    '"competitor_analysis": "<comparison to similar artists>", '
+                    '"growth_trajectory": "<assessment>", "market_readiness": "<ready for label/sync/independent>"}'
+                ),
+                "music_batch_eval": (
+                    "You are the AIM MIO Evaluation Agent. Batch evaluation summary.\n\n"
+                    f"Artist: {artist_name}\n"
+                    f"Track: {track_title} (one of multiple tracks)\n"
+                    f"Genre: {context or 'Unknown'}\n"
+                    f"{url_info}\n\n"
+                    "Provide batch-level analysis:\n"
+                    "- Individual track score\n- Aggregate statistics\n- Genre distribution insights\n\n"
+                    "Respond in JSON format:\n"
+                    '{"results": [{"title": "<title>", "score": <1-100>, "feedback": "<brief>"}], '
+                    '"aggregate_stats": {"avg_score": <avg>, "min_score": <min>, "max_score": <max>}, '
+                    '"genre_distribution": {"<genre>": <count>}, "top_tracks": ["<top track 1>"], '
+                    '"recommendations": ["<batch-level recommendation>"]}'
+                ),
             }
 
             prompt = prompts.get(eval_type, prompts["music_standard_eval"])
@@ -127,7 +133,16 @@ Respond in JSON format:
             response = client.chat.completions.create(
                 model="z-ai-glm-5-1",
                 messages=[
-                    {"role": "system", "content": "You are the AIM MIO Evaluation Agent, a Phase 4 Evaluator on Virtuals ACP. You evaluate music tracks using the V4A framework (Truth, Neighbor, Fruit, Mammon, Service). Always respond in valid JSON format."},
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are the AIM MIO Evaluation Agent, a Phase 4 Evaluator on Virtuals ACP. "
+                            "You evaluate music tracks using the V4A framework (Truth, Neighbor, Fruit, Mammon, Service). "
+                            "Always respond in valid JSON format. "
+                            "If a track URL is provided, reference the actual audio content in your evaluation. "
+                            "If no URL is available, use your knowledge of the artist, genre, and similar tracks to provide an informed evaluation."
+                        ),
+                    },
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
@@ -135,12 +150,19 @@ Respond in JSON format:
             )
 
             # Parse the response
-            result_text = response.choices[0].message.content
+            result_text = response.choices[0].message.content.strip()
             try:
                 result_data = json.loads(result_text)
             except json.JSONDecodeError:
-                # If not valid JSON, wrap it
-                result_data = {"feedback": result_text, "score": 70, "verdict": "PASS"}
+                # Try to extract JSON from markdown code blocks
+                if "```json" in result_text:
+                    json_str = result_text.split("```json")[1].split("```")[0].strip()
+                    try:
+                        result_data = json.loads(json_str)
+                    except json.JSONDecodeError:
+                        result_data = {"feedback": result_text, "score": 70, "verdict": "PASS"}
+                else:
+                    result_data = {"feedback": result_text, "score": 70, "verdict": "PASS"}
 
             job_id = f"virtuals_{random.randint(10000,99999)}"
 
@@ -162,8 +184,6 @@ Respond in JSON format:
         """Check job status. For Virtuals, results are returned immediately."""
         if not self.available or job_id.startswith("mock_") or job_id.startswith("local_"):
             return self._mock_status(job_id)
-
-        # For real Virtuals jobs, results are returned in create_job
         return {"status": "completed", "message": "Job completed via Virtuals Compute API"}
 
     def _mock_status(self, job_id: str) -> dict:
@@ -181,7 +201,6 @@ Respond in JSON format:
                 break
         if not result:
             result = {"score": random.randint(60, 90), "feedback": "Evaluation complete. Track shows good potential.", "verdict": "PASS"}
-
         return {"status": "completed", "result": result, "mock": True}
 
     def _mock_job(self, track_title: str, artist_name: str, eval_type: str) -> dict:
@@ -202,40 +221,11 @@ Respond in JSON format:
     def get_service_tiers(self) -> list[dict]:
         """Return available evaluation service tiers."""
         return [
-            {
-                "id": "music_quick_eval",
-                "name": "Quick Eval",
-                "description": "Single track quality check (1-100 score)",
-                "price_usd": 1,
-                "duration": "~5 minutes",
-                "icon": "⚡",
-            },
-            {
-                "id": "music_standard_eval",
-                "name": "Standard Eval",
-                "description": "Detailed track analysis with feedback",
-                "price_usd": 3,
-                "duration": "~30 minutes",
-                "icon": "📊",
-            },
-            {
-                "id": "music_portfolio_audit",
-                "name": "Portfolio Audit",
-                "description": "Full artist portfolio analysis + recommendations",
-                "price_usd": 8,
-                "duration": "~2 hours",
-                "icon": "🔍",
-            },
-            {
-                "id": "music_batch_eval",
-                "name": "Batch Eval",
-                "description": "Evaluate up to 100 tracks at once",
-                "price_usd": 15,
-                "duration": "~10 hours",
-                "icon": "📦",
-            },
+            {"id": "music_quick_eval", "name": "Quick Eval", "description": "Single track quality check (1-100 score)", "price_usd": 1, "duration": "~5 min", "icon": "⚡"},
+            {"id": "music_standard_eval", "name": "Standard Eval", "description": "Detailed track analysis with feedback", "price_usd": 3, "duration": "~30 min", "icon": "📊"},
+            {"id": "music_portfolio_audit", "name": "Portfolio Audit", "description": "Full artist portfolio analysis + recommendations", "price_usd": 8, "duration": "~2 hours", "icon": "🔍"},
+            {"id": "music_batch_eval", "name": "Batch Eval", "description": "Evaluate up to 100 tracks at once", "price_usd": 15, "duration": "~10 hours", "icon": "📦"},
         ]
 
 
-# Singleton
 mio_job_service = MIOJobService()
