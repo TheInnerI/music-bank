@@ -53,10 +53,22 @@
     </div>
 
     {% if current_artist %}
+    <div class="eval-track-select">
+        <h3>🎵 Select Track to Evaluate</h3>
+        <div class="form-group">
+            <select id="eval-track-id" class="form-control">
+                <option value="">— Choose a track —</option>
+                {% for t in artist_tracks %}
+                <option value="{{ t.id }}">{{ t.title }} ({{ t.plays }} plays)</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
     <div class="my-evaluations">
         <h2>My Evaluations</h2>
         <p class="text-muted">Track your AI evaluation jobs and results.</p>
-        <div id="eval-list"></div>
+        <div id="eval-list"><p class="text-muted">No evaluations yet. Select a track and start above!</p></div>
     </div>
     {% endif %}
 
@@ -132,8 +144,132 @@
 function copyText(text) {
     navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
 }
-function startEvaluation(tierId) {
-    alert('Evaluation job created! In production, this would create an ACP job with the MIO agent. Tier: ' + tierId);
+
+async function startEvaluation(tierId) {
+    // Get track selection
+    const trackId = document.getElementById('eval-track-id').value;
+    if (!trackId) {
+        alert('Please select a track to evaluate.');
+        return;
+    }
+
+    const btn = document.querySelector(`[onclick="startEvaluation('${tierId}')"]`);
+    btn.disabled = true;
+    btn.textContent = 'Creating job...';
+
+    try {
+        const resp = await fetch('/api/agent/evaluate', {
+            method: 'POST',
+            body: new URLSearchParams({ track_id: trackId, eval_type: tierId }),
+        });
+        const data = await resp.json();
+
+        if (data.status === 'ok') {
+            // Show success + job status
+            const msg = data.message + '\\nJob ID: ' + data.job_id;
+            alert(msg);
+
+            // Add to evaluations list
+            addEvaluationToList(data.job_id, tierId, 'pending');
+
+            // Start polling for results
+            pollJobStatus(data.job_id);
+        } else {
+            alert('Error: ' + (data.message || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('Error creating job: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Start Evaluation';
+    }
 }
+
+function addEvaluationToList(jobId, tierId, status) {
+    const list = document.getElementById('eval-list');
+    if (!list) return;
+
+    const item = document.createElement('div');
+    item.className = 'eval-item';
+    item.id = 'eval-' + jobId;
+    item.innerHTML = `
+        <div class="eval-info">
+            <strong>${tierId}</strong>
+            <span class="eval-job-id">${jobId}</span>
+        </div>
+        <span class="eval-status badge badge-${status === 'completed' ? 'green' : 'yellow'}">${status}</span>
+    `;
+    list.appendChild(item);
+}
+
+async function pollJobStatus(jobId) {
+    const maxAttempts = 30;
+    let attempts = 0;
+
+    const interval = setInterval(async () => {
+        attempts++;
+        try {
+            const resp = await fetch('/api/agent/status/' + jobId);
+            const data = await resp.json();
+
+            const item = document.getElementById('eval-' + jobId);
+            if (item) {
+                const statusBadge = item.querySelector('.eval-status');
+                statusBadge.textContent = data.status;
+                statusBadge.className = 'eval-status badge badge-' + (data.status === 'completed' ? 'green' : 'yellow');
+
+                if (data.result) {
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'eval-result';
+                    resultDiv.innerHTML = `<strong>Score:</strong> ${data.result.score || 'N/A'}/100<br><strong>Feedback:</strong> ${data.result.feedback || 'N/A'}`;
+                    item.appendChild(resultDiv);
+                }
+            }
+
+            if (data.status === 'completed' || data.status === 'failed' || attempts >= maxAttempts) {
+                clearInterval(interval);
+            }
+        } catch (e) {
+            clearInterval(interval);
+        }
+    }, 5000); // Poll every 5 seconds
+}
+
+// Load existing evaluations on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    const list = document.getElementById('eval-list');
+    if (!list) return;
+
+    try {
+        const resp = await fetch('/api/agent/evaluations');
+        if (resp.ok) {
+            const data = await resp.json();
+            data.evaluations.forEach(ev => {
+                addEvaluationToList(ev.job_id, ev.eval_type, ev.status);
+                if (ev.result) {
+                    const item = document.getElementById('eval-' + ev.job_id);
+                    if (item) {
+                        const resultDiv = document.createElement('div');
+                        resultDiv.className = 'eval-result';
+                        resultDiv.innerHTML = `<strong>Score:</strong> ${ev.score}/100<br><strong>Feedback:</strong> ${ev.feedback}`;
+                        item.appendChild(resultDiv);
+                    }
+                }
+            });
+        }
+    } catch (e) {
+        // Silently fail
+    }
+});
 </script>
+
+<style>
+.eval-item { background: var(--deep); border-radius: var(--radius-sm); padding: 12px; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; }
+.eval-info { display: flex; flex-direction: column; gap: 4px; }
+.eval-job-id { font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
+.eval-result { margin-top: 8px; padding: 8px; background: var(--surface); border-radius: 4px; font-size: 13px; }
+.eval-track-select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 24px 0; }
+.eval-track-select h3 { margin-bottom: 12px; }
+.eval-track-select select { width: 100%; padding: 10px 14px; background: var(--deep); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 14px; font-family: var(--font-body); outline: none; }
+</style>
 {% endblock %}
