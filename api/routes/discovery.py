@@ -1,5 +1,6 @@
 """Discovery routes — algorithmic feed, search, trending"""
 from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from api.database import get_db
 from api.templates import respond
 from api.routes.auth import get_current_artist
@@ -32,7 +33,7 @@ def compute_discovery_score(track: dict) -> float:
 async def discovery_feed(request: Request):
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name, a.genre as artist_genre FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE t.is_published=1 ORDER BY t.created_at DESC LIMIT 50")
+        cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name, a.genre as artist_genre FROM tracks t JOIN artists a ON t.artist_id=a.id ORDER BY t.created_at DESC LIMIT 50")
         tracks = [dict(r) for r in await cursor.fetchall()]
     finally:
         await db.close()
@@ -46,7 +47,7 @@ async def discovery_feed(request: Request):
 async def trending(request: Request):
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE t.is_published=1 ORDER BY t.plays DESC LIMIT 30")
+        cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id ORDER BY t.plays DESC LIMIT 30")
         tracks = [dict(r) for r in await cursor.fetchall()]
     finally:
         await db.close()
@@ -57,7 +58,7 @@ async def trending(request: Request):
 async def new_releases(request: Request):
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE t.is_published=1 ORDER BY t.created_at DESC LIMIT 30")
+        cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id ORDER BY t.created_at DESC LIMIT 30")
         tracks = [dict(r) for r in await cursor.fetchall()]
     finally:
         await db.close()
@@ -76,27 +77,34 @@ async def search_page(request: Request):
 
         db = await get_db()
         try:
-            # Count by platform
-            for p in counts:
-                if p == "all":
-                    cursor = await db.execute("SELECT COUNT(*) FROM tracks WHERE is_published=1")
-                else:
-                    cursor = await db.execute("SELECT COUNT(*) FROM tracks WHERE is_published=1 AND audio_url LIKE ?", (f"%{p}%",))
+            # Count all tracks
+            cursor = await db.execute("SELECT COUNT(*) FROM tracks")
+            counts["all"] = (await cursor.fetchone())[0]
+
+            # Count by platform (handle NULL audio_url)
+            for p in ["youtube", "spotify", "soundcloud", "bandcamp"]:
+                cursor = await db.execute(
+                    "SELECT COUNT(*) FROM tracks WHERE audio_url IS NOT NULL AND audio_url LIKE ?",
+                    (f"%{p}%",)
+                )
                 counts[p] = (await cursor.fetchone())[0]
 
+            # Search tracks
             if q and len(q) >= 2:
-                # Build query with platform filter
-                query = "SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE t.is_published=1"
+                query = "SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE 1=1"
                 params = []
-                if platform == "youtube":
-                    query += " AND (t.audio_url LIKE '%youtube%' OR t.audio_url LIKE '%youtu.be%')"
-                elif platform == "spotify":
-                    query += " AND t.audio_url LIKE '%spotify%'"
-                elif platform == "soundcloud":
-                    query += " AND t.audio_url LIKE '%soundcloud%'"
-                elif platform == "bandcamp":
-                    query += " AND t.audio_url LIKE '%bandcamp%'"
 
+                # Platform filter
+                if platform == "youtube":
+                    query += " AND (t.audio_url IS NOT NULL AND (t.audio_url LIKE '%youtube%' OR t.audio_url LIKE '%youtu.be%'))"
+                elif platform == "spotify":
+                    query += " AND (t.audio_url IS NOT NULL AND t.audio_url LIKE '%spotify%')"
+                elif platform == "soundcloud":
+                    query += " AND (t.audio_url IS NOT NULL AND t.audio_url LIKE '%soundcloud%')"
+                elif platform == "bandcamp":
+                    query += " AND (t.audio_url IS NOT NULL AND t.audio_url LIKE '%bandcamp%')"
+
+                # Text search
                 search_term = f"%{q}%"
                 query += " AND (t.title LIKE ? OR t.genre LIKE ? OR a.display_name LIKE ? OR t.description LIKE ?)"
                 params.extend([search_term] * 4)
@@ -105,15 +113,6 @@ async def search_page(request: Request):
                 cursor = await db.execute(query, params)
                 tracks = [dict(r) for r in await cursor.fetchall()]
 
-                # Semantic search fallback via TurboVec
-                if len(tracks) < 10:
-                    try:
-                        from api.vectors import search_service
-                        semantic_results = await search_service.search_tracks(q, db, 20)
-                        if platform != "all":
-                            semantic_results = [r for r in semantic_results if platform in r.get("audio_url", "").lower()]
-                    except:
-                        pass
         finally:
             await db.close()
 
@@ -125,16 +124,16 @@ async def search_page(request: Request):
 
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        from fastapi.responses import HTMLResponse
-        return HTMLResponse(f"<h1>Search Error</h1><p>{str(e)}</p><pre>{traceback.format_exc()}</pre>", status_code=500)
+        error_msg = traceback.format_exc()
+        print(f"[Search Error] {error_msg}")
+        return HTMLResponse(f"<h1>Search Error</h1><p>{str(e)}</p><pre>{error_msg}</pre>", status_code=500)
 
 
 @router.get("/genre/{genre}")
 async def by_genre(request: Request, genre: str):
     db = await get_db()
     try:
-        cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE t.is_published=1 AND t.genre LIKE ? ORDER BY t.plays DESC LIMIT 30", (f"%{genre}%",))
+        cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id WHERE t.genre LIKE ? ORDER BY t.plays DESC LIMIT 30", (f"%{genre}%",))
         tracks = [dict(r) for r in await cursor.fetchall()]
     finally:
         await db.close()
