@@ -55,7 +55,7 @@
                     <div class="track-list-info">
                         <a href="/tracks/{{ t.id }}" class="track-title">{{ t.title }}</a>
                         <a href="/artists/{{ t.artist_username }}" class="track-artist">{{ t.artist_name }}</a>
-                        <span class="text-muted">{{ t.mood|default('') }} {{ t.genre|default('') }}</span>
+                        <span class="text-muted">{{ t.genre|default('') }}</span>
                     </div>
                     {% if t.audio_url and ('youtube.com' in t.audio_url or 'youtu.be' in t.audio_url) %}
                     <span class="platform-badge youtube">▶️</span>

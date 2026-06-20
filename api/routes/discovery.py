@@ -98,8 +98,8 @@ async def search_page(request: Request):
                     query += " AND t.audio_url LIKE '%bandcamp%'"
 
                 search_term = f"%{q}%"
-                query += " AND (t.title LIKE ? OR t.genre LIKE ? OR a.display_name LIKE ? OR t.mood LIKE ? OR t.description LIKE ?)"
-                params.extend([search_term] * 5)
+                query += " AND (t.title LIKE ? OR t.genre LIKE ? OR a.display_name LIKE ? OR t.description LIKE ?)"
+                params.extend([search_term] * 4)
                 query += " ORDER BY t.plays DESC LIMIT 50"
 
                 cursor = await db.execute(query, params)
