@@ -1,46 +1,40 @@
 """
-Music Bank — MIO Evaluator Agent (ACP) Integration
+Music Bank — MIO Evaluator Agent (ACP) Job Service
 
-The MIO Evaluator agent (ID: 019ec475-d3e5-7e06-84e0-16f51fdea0b9) provides
-AI-powered evaluation services for artists and fans on Music Bank.
+Handles creating jobs on Virtuals ACP for the MIO Evaluator agent.
+Uses the Virtuals ACP Python SDK (github.com/Virtual-Protocol/acp-python).
 
-Use cases:
-1. Track Quality Evaluation — AI rates track quality (1-100)
-2. Artist Portfolio Audit — Full portfolio analysis + recommendations
-3. Fan Sentiment Analysis — Analyze comments/likes for artist feedback
-4. Pricing Recommendations — Suggest sync licensing prices
-5. Content Moderation — Flag inappropriate content
-6. Trend Analysis — Identify trending genres/moods
-
-Pricing (in $MIO tokens):
-- micro_eval: $1 (single track quick eval)
-- standard_eval: $5 (detailed track analysis)
-- full_eval: $15 (portfolio audit)
-- cluster_eval: $99 (batch evaluation of up to 100 tracks)
+Job Flow:
+1. Music Bank creates ACP job via Virtuals API
+2. Virtuals routes job to MIO Evaluator agent
+3. Agent processes using V4A framework
+4. Results sent back via callback
+5. Music Bank displays results to artist
 """
 
 import os
-import httpx
 import json
+import time
+import httpx
 from typing import Optional
 from api.config import MIO_AGENT_WALLET, MIO_AGENT_ID, MIO_AGENT_URL
 
 
-class MIOAgentService:
-    """Interact with the MIO Evaluator agent via ACP."""
+class MIOJobService:
+    """Manage ACP jobs with the MIO Evaluator agent."""
 
     def __init__(self):
         self.agent_wallet = MIO_AGENT_WALLET
         self.agent_id = MIO_AGENT_ID
         self.agent_url = MIO_AGENT_URL
-        self.api_key = os.getenv("VIRTUALS_API_KEY", "")
-        self._available = bool(self.api_key)
+        self.virtuals_api_key = os.getenv("VIRTUALS_API_KEY", "")
+        self.base_url = "https://api.virtuals.io/v1"
 
     @property
     def available(self) -> bool:
-        return self._available
+        return bool(self.virtuals_api_key)
 
-    async def create_evaluation_job(
+    async def create_job(
         self,
         track_id: int,
         track_title: str,
@@ -49,63 +43,132 @@ class MIOAgentService:
         context: str = "",
     ) -> dict:
         """
-        Create an evaluation job for the MIO agent.
+        Create an ACP job on Virtuals for the MIO Evaluator agent.
 
-        eval_type options:
-        - micro_eval: Quick quality check ($1)
-        - standard_eval: Detailed analysis ($5)
-        - full_eval: Portfolio audit ($15)
-        - cluster_eval: Batch evaluation ($99)
+        The job goes through 4 phases:
+        1. Request — we submit the job request
+        2. Negotiation — agent accepts and agrees on terms
+        3. Transaction — payment held in escrow
+        4. Evaluation — agent delivers results, payment released
         """
         if not self.available:
-            return self._mock_evaluation(track_title, artist_name, eval_type)
+            return self._mock_job(track_title, artist_name, eval_type)
+
+        # Map eval types to Virtuals job parameters
+        job_configs = {
+            "micro_eval": {
+                "service_name": "micro_eval",
+                "description": "Quick track quality evaluation (1-100 score)",
+                "price_usd": 1,
+                "price_mio": 20,
+                "estimated_duration": "10s",
+            },
+            "standard_eval": {
+                "service_name": "standard_eval",
+                "description": "Detailed track analysis with feedback",
+                "price_usd": 5,
+                "price_mio": 100,
+                "estimated_duration": "30s",
+            },
+            "full_eval": {
+                "service_name": "full_eval",
+                "description": "Full artist portfolio audit + recommendations",
+                "price_usd": 15,
+                "price_mio": 300,
+                "estimated_duration": "2min",
+            },
+            "cluster_eval": {
+                "service_name": "cluster_eval",
+                "description": "Batch evaluation of up to 100 tracks",
+                "price_usd": 99,
+                "price_mio": 2000,
+                "estimated_duration": "10min",
+            },
+        }
+
+        config = job_configs.get(eval_type, job_configs["standard_eval"])
 
         job_data = {
-            "type": eval_type,
-            "track_id": track_id,
-            "track_title": track_title,
-            "artist_name": artist_name,
-            "context": context,
-            "callback_url": f"{os.getenv('APP_URL', '')}/api/agent/callback",
+            "agent_id": self.agent_id,
+            "service_name": config["service_name"],
+            "description": config["description"],
+            "price_mio": config["price_mio"],
+            "estimated_duration": config["estimated_duration"],
+            "input_data": {
+                "track_id": track_id,
+                "track_title": track_title,
+                "artist_name": artist_name,
+                "context": context,
+                "callback_url": f"{os.getenv('APP_URL', '')}/api/agent/callback",
+            },
         }
 
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{self.agent_url}/jobs",
+                f"{self.base_url}/acp/jobs",
                 json=job_data,
                 headers={
-                    "Authorization": f"Bearer {self.api_key}",
+                    "Authorization": f"Bearer {self.virtuals_api_key}",
                     "Content-Type": "application/json",
                 },
                 timeout=30.0,
             )
-            return resp.json()
 
-    def _mock_evaluation(self, track_title: str, artist_name: str, eval_type: str) -> dict:
-        """Mock evaluation for development."""
-        import random
-        return {
-            "status": "pending",
-            "job_id": f"mock_{random.randint(1000,9999)}",
-            "eval_type": eval_type,
-            "track_title": track_title,
-            "artist_name": artist_name,
-            "estimated_completion": "30 seconds",
-            "mock": True,
-        }
+            if resp.status_code == 200:
+                result = resp.json()
+                return {
+                    "status": "created",
+                    "job_id": result.get("job_id"),
+                    "virtuals_job_id": result.get("id"),
+                    "phase": "request",
+                    "message": f"Job created on Virtuals ACP! Phase: Request. Agent will accept shortly.",
+                    "estimated_completion": config["estimated_duration"],
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Failed to create job: {resp.status_code} {resp.text}",
+                }
 
     async def get_job_status(self, job_id: str) -> dict:
-        """Check status of an evaluation job."""
+        """Check job status on Virtuals ACP."""
         if not self.available:
             return {"status": "completed", "result": {"score": 75, "feedback": "Good track!"}}
 
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                f"{self.agent_url}/jobs/{job_id}",
-                headers={"Authorization": f"Bearer {self.api_key}"},
+                f"{self.base_url}/acp/jobs/{job_id}",
+                headers={"Authorization": f"Bearer {self.virtuals_api_key}"},
                 timeout=15.0,
             )
-            return resp.json()
+            if resp.status_code == 200:
+                return resp.json()
+            return {"status": "unknown", "error": resp.text}
+
+    async def approve_job(self, job_id: str) -> dict:
+        """Approve/accept a job on Virtuals (moves to Transaction phase)."""
+        if not self.available:
+            return {"status": "approved"}
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self.base_url}/acp/jobs/{job_id}/approve",
+                headers={"Authorization": f"Bearer {self.virtuals_api_key}"},
+                timeout=15.0,
+            )
+            return resp.json() if resp.status_code == 200 else {"status": "error"}
+
+    def _mock_job(self, track_title: str, artist_name: str, eval_type: str) -> dict:
+        """Mock job for development (no Virtuals API key)."""
+        import random
+        return {
+            "status": "created",
+            "job_id": f"mock_{random.randint(1000,9999)}",
+            "virtuals_job_id": None,
+            "phase": "request",
+            "message": f"Mock job created for '{track_title}' by {artist_name}. Type: {eval_type}. In production, this would create a real ACP job on Virtuals.",
+            "mock": True,
+        }
 
     def get_service_tiers(self) -> list[dict]:
         """Return available evaluation service tiers."""
@@ -150,4 +213,4 @@ class MIOAgentService:
 
 
 # Singleton
-mio_agent = MIOAgentService()
+mio_job_service = MIOJobService()

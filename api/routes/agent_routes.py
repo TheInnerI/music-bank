@@ -3,7 +3,7 @@ from fastapi import APIRouter, Request, HTTPException
 from api.database import get_db
 from api.templates import respond
 from api.routes.auth import get_current_artist
-from api.mio_agent import mio_agent
+from api.mio_agent import mio_job_service
 from api.config import MIO_AGENT_WALLET, MIO_AGENT_ID, MIO_AGENT_URL
 
 router = APIRouter()
@@ -13,7 +13,7 @@ router = APIRouter()
 async def mio_agent_page(request: Request):
     """MIO Evaluator agent page — services and pricing."""
     current_artist = await get_current_artist(request)
-    tiers = mio_agent.get_service_tiers()
+    tiers = mio_job_service.get_service_tiers()
 
     return respond("agents/mio.html", {
         "request": request,
@@ -51,7 +51,7 @@ async def create_evaluation(request: Request):
         raise HTTPException(status_code=404, detail="Track not found")
 
     # Create evaluation job
-    result = await mio_agent.create_evaluation_job(
+    result = await mio_job_service.create_job(
         track_id=track_id,
         track_title=track["title"],
         artist_name=current_artist["display_name"],
@@ -73,7 +73,7 @@ async def check_evaluation_status(request: Request, job_id: str):
     if not current_artist:
         raise HTTPException(status_code=401, detail="Must be logged in")
 
-    result = await mio_agent.get_job_status(job_id)
+    result = await mio_job_service.get_job_status(job_id)
     from fastapi.responses import JSONResponse
     return JSONResponse(result)
 
