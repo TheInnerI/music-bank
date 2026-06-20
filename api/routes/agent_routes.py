@@ -1,5 +1,6 @@
 """MIO Agent routes — ACP job offerings and callbacks."""
 from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import JSONResponse
 from api.database import get_db
 from api.templates import respond
 from api.routes.auth import get_current_artist
