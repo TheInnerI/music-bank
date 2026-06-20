@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}MIO Evaluator Agent — Music Bank{% endblock %}
+
+{% block content %}
+<div class="agent-page">
+    <div class="agent-header">
+        <div class="agent-icon">🤖</div>
+        <div class="agent-info">
+            <h1>MIO Evaluator Agent</h1>
+            <p class="text-muted">AI-powered track evaluation and portfolio analysis for artists.</p>
+            <div class="agent-meta">
+                <span class="badge badge-flame">Powered by Virtuals ACP</span>
+                <span class="text-sm text-muted">Agent ID: {{ agent_id[:12] }}...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="agent-wallet-box">
+        <h3>💰 Fund Agent ($MIO)</h3>
+        <p class="text-muted">Send $MIO tokens to the agent wallet to fund evaluations.</p>
+        <div class="wallet-display">
+            <code>{{ agent_wallet }}</code>
+            <button class="btn btn-sm" onclick="copyText('{{ agent_wallet }}')">📋 Copy</button>
+        </div>
+        <p class="text-sm text-muted" style="margin-top:8px">Network: Base · Token: $MIO</p>
+    </div>
+
+    <h2 style="margin-top:32px">Evaluation Services</h2>
+    <div class="tier-cards">
+        {% for tier in tiers %}
+        <div class="tier-card {{ 'popular' if tier.id == 'standard_eval' }}">
+            <div class="tier-icon">{{ tier.icon }}</div>
+            <h3>{{ tier.name }}</h3>
+            <p class="tier-desc">{{ tier.description }}</p>
+            <div class="tier-price">
+                <span class="price-mio">{{ tier.price_mio }} $MIO</span>
+                <span class="price-usd">≈ ${{ tier.price_usd }}</span>
+            </div>
+            <div class="tier-duration">⏱️ {{ tier.duration }}</div>
+            <button class="btn btn-full" onclick="startEvaluation('{{ tier.id }}')">
+                {{ 'Get Started' if current_artist else 'Login to Use' }}
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if current_artist %}
+    <div class="my-evaluations">
+        <h2>My Evaluations</h2>
+        <p class="text-muted">Track your AI evaluation jobs and results.</p>
+        <a href="/artists/dashboard" class="btn btn-sm">View Dashboard →</a>
+    </div>
+    {% endif %}
+
+    <div class="agent-how-it-works">
+        <h2>How It Works</h2>
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <div class="step-content">
+                    <h4>Select a Service</h4>
+                    <p>Choose from Quick Eval, Standard Eval, Portfolio Audit, or Batch Eval.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <div class="step-content">
+                    <h4>Pay in $MIO</h4>
+                    <p>Fund the agent wallet with $MIO tokens on Base.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <div class="step-content">
+                    <h4>AI Analyzes</h4>
+                    <p>The MIO Evaluator agent analyzes your track(s) using the V4A framework.</p>
+                </div>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <div class="step-content">
+                    <h4>Get Results</h4>
+                    <p>Receive detailed feedback, scores, and recommendations.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.agent-page { max-width: 900px; margin: 0 auto; }
+.agent-header { display: flex; gap: 24px; align-items: center; margin-bottom: 32px; }
+.agent-icon { font-size: 64px; width: 96px; height: 96px; background: linear-gradient(135deg, var(--observer), var(--flame)); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.agent-info h1 { margin-bottom: 4px; }
+.agent-meta { display: flex; gap: 12px; margin-top: 8px; }
+.agent-wallet-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin: 24px 0; }
+.agent-wallet-box h3 { margin-bottom: 8px; }
+.wallet-display { display: flex; gap: 12px; margin-top: 12px; align-items: center; }
+.wallet-display code { flex: 1; background: var(--deep); padding: 12px 16px; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 13px; word-break: break-all; color: var(--breath); border: 1px solid var(--border); }
+.tier-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 16px 0; }
+.tier-card { background: var(--surface); border-radius: var(--radius); padding: 20px; border: 2px solid var(--border); text-align: center; }
+.tier-card.popular { border-color: var(--flame); }
+.tier-icon { font-size: 32px; margin-bottom: 8px; }
+.tier-desc { font-size: 13px; color: var(--text-muted); margin: 8px 0; }
+.tier-price { margin: 12px 0; }
+.price-mio { font-size: 20px; font-weight: 700; color: var(--flame); }
+.price-usd { font-size: 13px; color: var(--text-muted); margin-left: 8px; }
+.tier-duration { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; }
+.my-evaluations { background: var(--surface); border-radius: var(--radius); padding: 20px; margin: 24px 0; }
+.agent-how-it-works { margin: 32px 0; }
+.steps { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
+.step { display: flex; gap: 16px; align-items: flex-start; }
+.step-num { width: 36px; height: 36px; border-radius: 50%; background: var(--observer); display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; flex-shrink: 0; }
+</style>
+
+<script>
+function copyText(text) {
+    navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
+}
+function startEvaluation(tierId) {
+    alert('Evaluation job created! In production, this would create an ACP job with the MIO agent. Tier: ' + tierId);
+}
+</script>
+{% endblock %}

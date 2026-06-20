@@ -506,6 +506,20 @@ async def init_db():
             CREATE INDEX IF NOT EXISTS idx_licensing_track ON licensing_deals(track_id);
             CREATE INDEX IF NOT EXISTS idx_ai_tools_track ON track_ai_tools(track_id);
 
+            -- Agent evaluations
+            CREATE TABLE IF NOT EXISTS agent_evaluations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                track_id INTEGER,
+                eval_type TEXT DEFAULT 'standard_eval',
+                score INTEGER DEFAULT 0,
+                feedback TEXT DEFAULT '',
+                status TEXT DEFAULT 'pending',
+                raw_result TEXT DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (track_id) REFERENCES tracks(id)
+            );
+
             -- Password resets
             CREATE TABLE IF NOT EXISTS password_resets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
