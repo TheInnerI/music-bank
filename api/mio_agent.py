@@ -125,7 +125,7 @@ Respond in JSON format:
 
             # Call Virtuals Compute API (OpenAI-compatible)
             response = client.chat.completions.create(
-                model="zai-org/glm-5-1",
+                model="z-ai-glm-5-1",
                 messages=[
                     {"role": "system", "content": "You are the AIM MIO Evaluation Agent, a Phase 4 Evaluator on Virtuals ACP. You evaluate music tracks using the V4A framework (Truth, Neighbor, Fruit, Mammon, Service). Always respond in valid JSON format."},
                     {"role": "user", "content": prompt},
