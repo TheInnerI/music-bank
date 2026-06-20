@@ -19,7 +19,7 @@
             </div>
             {% if track.description %}<p class="track-description">{{ track.description }}</p>{% endif %}
             <div class="track-actions">
-                {% if track.audio_url and 'youtube.com' in track.audio_url or 'youtu.be' in track.audio_url %}
+                {% if track.audio_url and ('youtube.com' in track.audio_url or 'youtu.be' in track.audio_url) %}
                 <button class="btn btn-lg" onclick="toggleYouTubePlayer()">▶ Play on YouTube</button>
                 {% elif track.audio_url %}
                 <button class="btn btn-lg" onclick="playTrack({{ track.id }}, '{{ track.audio_url }}')">▶ Play</button>
