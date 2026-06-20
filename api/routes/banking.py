@@ -476,6 +476,72 @@ async def deposit_mio(request: Request):
 
 
 # ============================================================
+# SYNC LICENSING MARKETPLACE
+# ============================================================
+
+@router.get("/licensing")
+async def licensing_marketplace(request: Request):
+    """Browse tracks available for sync licensing."""
+    current_artist = await get_current_artist(request)
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT t.*, a.display_name as artist_name, a.username as artist_username "
+            "FROM tracks t JOIN artists a ON t.artist_id=a.id "
+            "WHERE t.sync_available=1 AND t.is_published=1 "
+            "ORDER BY t.plays DESC LIMIT 50"
+        )
+        tracks = [dict(t) for t in await cursor.fetchall()]
+    finally:
+        await db.close()
+
+    from api.copyright import SYNC_CATEGORIES
+    return respond("legal/licensing.html", {
+        "request": request,
+        "tracks": tracks,
+        "sync_categories": SYNC_CATEGORIES,
+        "current_artist": current_artist,
+    })
+
+
+@router.post("/licensing/inquiry")
+async def licensing_inquiry(request: Request):
+    """Submit a licensing inquiry for a track."""
+    current_artist = await get_current_artist(request)
+    if not current_artist:
+        raise HTTPException(status_code=401, detail="Must be logged in")
+
+    form = await request.form()
+
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO licensing_deals "
+            "(track_id, licensee_name, licensee_email, license_type, "
+            "intended_use, budget_range, status) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                int(form.get("track_id", 0)),
+                form.get("licensee_name", ""),
+                form.get("licensee_email", ""),
+                form.get("license_type", "sync"),
+                form.get("intended_use", ""),
+                form.get("budget_range", ""),
+                "inquiry",
+            )
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    return JSONResponse({
+        "status": "ok",
+        "message": "Licensing inquiry submitted. The artist will be notified.",
+    })
+
+
+# ============================================================
 # ARTIST PAYOUT ENDPOINTS
 # ============================================================
 

@@ -24,9 +24,15 @@
             <button class="btn btn-sm" onclick="copyText('{{ agent_wallet }}')">📋 Copy</button>
         </div>
         <p class="text-sm text-muted" style="margin-top:8px">Network: Base · Token: $MIO</p>
+        <div style="margin-top:12px">
+            <a href="https://app.virtuals.io/virtuals/87772" target="_blank" class="btn btn-flame btn-sm">🛒 Buy $MIO</a>
+            <a href="{{ agent_url }}?tab=acp" target="_blank" class="btn btn-sm" style="margin-left:8px">🔗 ACP Dashboard</a>
+        </div>
     </div>
 
     <h2 style="margin-top:32px">Evaluation Services</h2>
+    <p class="text-muted">AI-powered track evaluation using the V4A framework. Results delivered via ACP.</p>
+
     <div class="tier-cards">
         {% for tier in tiers %}
         <div class="tier-card {{ 'popular' if tier.id == 'standard_eval' }}">
@@ -39,10 +45,24 @@
             </div>
             <div class="tier-duration">⏱️ {{ tier.duration }}</div>
             <button class="btn btn-full" onclick="startEvaluation('{{ tier.id }}')">
-                {{ 'Get Started' if current_artist else 'Login to Use' }}
+                {{ 'Start Evaluation' if current_artist else 'Login to Use' }}
             </button>
         </div>
         {% endfor %}
+    </div>
+
+    {# ACP Job Activation #}
+    <div class="acp-info-box">
+        <h3>🔗 ACP Job Activation</h3>
+        <p class="text-muted">Jobs are activated through the Virtuals ACP protocol. When you start an evaluation:</p>
+        <ol class="acp-steps">
+            <li>Music Bank creates an ACP job request</li>
+            <li>MIO Evaluator agent receives the job on Virtuals</li>
+            <li>Agent analyzes your track using V4A framework</li>
+            <li>Results are sent back to Music Bank via callback</li>
+            <li>You see results on your dashboard</li>
+        </ol>
+        <a href="{{ agent_url }}?tab=acp" target="_blank" class="btn btn-sm">View ACP Jobs →</a>
     </div>
 
     {% if current_artist %}
@@ -112,6 +132,10 @@
 .steps { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
 .step { display: flex; gap: 16px; align-items: flex-start; }
 .step-num { width: 36px; height: 36px; border-radius: 50%; background: var(--observer); display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; flex-shrink: 0; }
+.acp-info-box { background: rgba(139, 92, 246, 0.1); border: 1px solid var(--observer); border-radius: var(--radius); padding: 20px; margin: 24px 0; }
+.acp-info-box h3 { margin-bottom: 8px; }
+.acp-steps { margin: 12px 0; padding-left: 20px; }
+.acp-steps li { font-size: 14px; color: var(--text-muted); padding: 4px 0; }
 </style>
 
 <script>

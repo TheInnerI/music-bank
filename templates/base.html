@@ -25,11 +25,12 @@
             <div class="nav-links">
                 <a href="/discover/" class="nav-link {{ 'active' if active_tab == 'discover' }}">Discover</a>
                 <a href="/graph" class="nav-link {{ 'active' if active_tab == 'graph' }}">Network</a>
-                <a href="/search" class="nav-link {{ 'active' if active_tab == 'search' }}">Search</a>
+                <a href="/discover/search" class="nav-link {{ 'active' if active_tab == 'search' }}">Search</a>
                 <a href="/licensing" class="nav-link {{ 'active' if active_tab == 'licensing' }}">Licensing</a>
+                <a href="/agents/mio" class="nav-link {{ 'active' if active_tab == 'agent' }}">🤖 MIO</a>
             </div>
 
-            <form class="nav-search" action="/search" method="get">
+            <form class="nav-search" action="/discover/search" method="get">
                 <input type="text" name="q" placeholder="Search the network..." value="{{ query|default('') }}">
             </form>
 
