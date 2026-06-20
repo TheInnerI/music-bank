@@ -6,7 +6,7 @@ import aiosqlite
 import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "music_bank.db"
+DB_PATH = Path(__file__).parent.parent / "data" / "music_bank.db"
 
 
 async def get_db() -> aiosqlite.Connection:

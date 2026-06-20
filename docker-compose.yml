@@ -7,9 +7,9 @@ services:
     ports:
       - "8090:8090"
     volumes:
-      - ./music_bank.db:/app/music_bank.db
-      - ./static/audio:/app/static/audio
       - ./data:/app/data
+      - ./static/audio:/app/static/audio
+      - ./Caddyfile:/app/Caddyfile:ro
     env_file:
       - .env
     restart: unless-stopped
