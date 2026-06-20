@@ -77,12 +77,18 @@ async def create_evaluation(request: Request):
         track_url=track_url,
     )
 
+    # Debug logging
+    import sys
+    print(f"[Agent Route] status={result.get('status')}, job_id={result.get('job_id')}", file=sys.stderr)
+    if result.get('result'):
+        print(f"[Agent Route] score={result['result'].get('score')}", file=sys.stderr)
+
     from fastapi.responses import JSONResponse
     return JSONResponse({
         "status": result.get("status", "ok"),
         "job_id": result.get("job_id"),
         "message": result.get("message", "Evaluation complete!"),
-        "result": result.get("result"),  # Include results directly
+        "result": result.get("result"),
     })
 
 
