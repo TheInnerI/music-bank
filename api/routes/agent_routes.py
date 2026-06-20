@@ -63,7 +63,7 @@ async def create_evaluation(request: Request):
     if not track:
         raise HTTPException(status_code=404, detail="Track not found")
 
-    # Create evaluation job
+    # Create evaluation job (Virtuals returns results immediately)
     result = await mio_job_service.create_job(
         track_id=track_id,
         track_title=track["title"],
@@ -73,9 +73,10 @@ async def create_evaluation(request: Request):
 
     from fastapi.responses import JSONResponse
     return JSONResponse({
-        "status": "ok",
+        "status": result.get("status", "ok"),
         "job_id": result.get("job_id"),
-        "message": f"Evaluation job created! Type: {eval_type}. Estimated completion: {result.get('estimated_completion', 'unknown')}",
+        "message": result.get("message", "Evaluation complete!"),
+        "result": result.get("result"),  # Include results directly
     })
 
 

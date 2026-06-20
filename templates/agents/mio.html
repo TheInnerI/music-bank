@@ -176,13 +176,24 @@ async function startEvaluation(tierId) {
         });
         const data = await resp.json();
 
-        if (data.status === 'ok') {
+        if (data.status === 'ok' || data.status === 'completed') {
+            const jobId = data.job_id || 'completed';
+            const result = data.result;
+
+            // Add to list with results immediately
+            addEvaluationToList(jobId, tierId, 'completed', result);
+
+            const score = result ? result.score || result.overall_score || 'N/A' : 'N/A';
+            const feedback = result ? result.feedback || 'Evaluation complete.' : 'Evaluation complete.';
+            alert(`Evaluation complete!\n\nTrack: ${trackTitle}\nTier: ${tierId}\nScore: ${score}/100\n\n${feedback}`);
+        } else if (data.status === 'error') {
+            alert('Error: ' + (data.message || 'Unknown error'));
+        } else {
+            // Pending status — start polling
             const jobId = data.job_id || 'pending';
             addEvaluationToList(jobId, tierId, 'pending');
             pollJobStatus(jobId);
             alert(`Job created!\nTrack: ${trackTitle}\nTier: ${tierId}\nJob ID: ${jobId}`);
-        } else {
-            alert('Error: ' + (data.message || 'Unknown error'));
         }
     } catch (e) {
         alert('Error: ' + e.message);
@@ -192,7 +203,7 @@ async function startEvaluation(tierId) {
     }
 }
 
-function addEvaluationToList(jobId, tierId, status) {
+function addEvaluationToList(jobId, tierId, status, result) {
     const list = document.getElementById('eval-list');
     if (!list) return;
     const empty = list.querySelector('p.text-muted');
@@ -201,13 +212,21 @@ function addEvaluationToList(jobId, tierId, status) {
     const item = document.createElement('div');
     item.className = 'eval-item';
     item.id = 'eval-' + jobId;
+
+    let resultHtml = '';
+    if (result) {
+        const score = result.score || result.overall_score || 'N/A';
+        const feedback = result.feedback || '';
+        resultHtml = `<div class="eval-result"><strong>Score:</strong> ${score}/100<br><strong>Feedback:</strong> ${feedback}</div>`;
+    }
+
     item.innerHTML = `
         <div class="eval-info">
             <strong>${tierId}</strong>
             <span class="eval-job-id">${jobId}</span>
         </div>
         <span class="eval-status badge ${status === 'completed' ? 'badge-success' : 'badge-warning'}">${status}</span>
-    `;
+    ` + resultHtml;
     list.appendChild(item);
 }
 
