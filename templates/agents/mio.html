@@ -202,6 +202,8 @@ function addEvaluationToList(jobId, tierId, status) {
 async function pollJobStatus(jobId) {
     const maxAttempts = 30;
     let attempts = 0;
+    const isMock = jobId.startsWith('mock_');
+    const intervalMs = isMock ? 1000 : 5000;
 
     const interval = setInterval(async () => {
         attempts++;
@@ -212,10 +214,15 @@ async function pollJobStatus(jobId) {
             const item = document.getElementById('eval-' + jobId);
             if (item) {
                 const statusBadge = item.querySelector('.eval-status');
-                statusBadge.textContent = data.status;
-                statusBadge.className = 'eval-status badge badge-' + (data.status === 'completed' ? 'green' : 'yellow');
+                if (statusBadge) {
+                    statusBadge.textContent = data.status;
+                    statusBadge.className = 'eval-status badge ' + (data.status === 'completed' ? 'badge-success' : 'badge-warning');
+                }
 
                 if (data.result) {
+                    const oldResult = item.querySelector('.eval-result');
+                    if (oldResult) oldResult.remove();
+
                     const resultDiv = document.createElement('div');
                     resultDiv.className = 'eval-result';
                     resultDiv.innerHTML = `<strong>Score:</strong> ${data.result.score || 'N/A'}/100<br><strong>Feedback:</strong> ${data.result.feedback || 'N/A'}`;
@@ -229,7 +236,7 @@ async function pollJobStatus(jobId) {
         } catch (e) {
             clearInterval(interval);
         }
-    }, 5000); // Poll every 5 seconds
+    }, intervalMs);
 }
 
 // Load existing evaluations on page load
@@ -268,5 +275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 .eval-track-select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin: 24px 0; }
 .eval-track-select h3 { margin-bottom: 12px; }
 .eval-track-select select { width: 100%; padding: 10px 14px; background: var(--deep); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 14px; font-family: var(--font-body); outline: none; }
+.badge-success { background: rgba(34,197,94,0.2); color: #22c55e; }
+.badge-warning { background: rgba(234,179,8,0.2); color: #eab308; }
 </style>
 {% endblock %}
