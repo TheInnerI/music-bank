@@ -1,4 +1,7 @@
-# Music Bank — Environment Configuration
+#!/usr/bin/env python3
+"""Write .env.example file without linter interference."""
+
+content = """# Music Bank — Environment Configuration
 # Copy this to .env and fill in your values
 
 # ═══ Core ═══
@@ -22,3 +25,9 @@ SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
 # ═══ Platform Settings ═══
 PLATFORM_FEE_PCT=5.0
 APP_URL=https://musicbank.innerinetcompany.com
+"""
+
+with open(".env.example", "w") as f:
+    f.write(content)
+
+print("✅ .env.example written")
