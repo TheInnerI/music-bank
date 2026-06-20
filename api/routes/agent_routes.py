@@ -41,55 +41,55 @@ async def mio_agent_page(request: Request):
 @router.post("/api/agent/evaluate")
 async def create_evaluation(request: Request):
     """Create an evaluation job with the MIO agent."""
-    current_artist = await get_current_artist(request)
-    if not current_artist:
-        raise HTTPException(status_code=401, detail="Must be logged in")
-
-    form = await request.form()
-    track_id = int(form.get("track_id", 0))
-    eval_type = form.get("eval_type", "standard_eval")
-    track_url = form.get("track_url", "").strip()
-
-    # Verify track belongs to artist
-    db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT id, title, audio_url, genre FROM tracks WHERE id=? AND artist_id=?",
-            (track_id, current_artist["id"])
+        current_artist = await get_current_artist(request)
+        if not current_artist:
+            return JSONResponse({"status": "error", "message": "Must be logged in"}, status_code=401)
+
+        form = await request.form()
+        track_id = int(form.get("track_id", 0))
+        eval_type = form.get("eval_type", "standard_eval")
+        track_url = form.get("track_url", "").strip()
+
+        # Verify track belongs to artist
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT id, title, audio_url, genre FROM tracks WHERE id=? AND artist_id=?",
+                (track_id, current_artist["id"])
+            )
+            track = await cursor.fetchone()
+        finally:
+            await db.close()
+
+        if not track:
+            return JSONResponse({"status": "error", "message": "Track not found"}, status_code=404)
+
+        # aiosqlite Row supports dict-like access
+        track_audio_url = track["audio_url"] if track["audio_url"] else ""
+        track_genre = track["genre"] if track["genre"] else ""
+
+        # Create evaluation job (Virtuals returns results immediately)
+        result = await mio_job_service.create_job(
+            track_id=track_id,
+            track_title=track["title"],
+            artist_name=current_artist["display_name"],
+            eval_type=eval_type,
+            context=track_genre,
+            track_url=track_audio_url or track_url,  # Use manual URL if provided, else DB URL
         )
-        track = await cursor.fetchone()
-    finally:
-        await db.close()
 
-    if not track:
-        raise HTTPException(status_code=404, detail="Track not found")
+        return JSONResponse({
+            "status": result.get("status", "ok"),
+            "job_id": result.get("job_id"),
+            "message": result.get("message", "Evaluation complete!"),
+            "result": result.get("result"),
+        })
 
-    track_url = track.get("audio_url", "") or ""
-    genre = track.get("genre", "") or ""
-
-    # Create evaluation job (Virtuals returns results immediately)
-    result = await mio_job_service.create_job(
-        track_id=track_id,
-        track_title=track["title"],
-        artist_name=current_artist["display_name"],
-        eval_type=eval_type,
-        context=genre,
-        track_url=track_url,
-    )
-
-    # Debug logging
-    import sys
-    print(f"[Agent Route] status={result.get('status')}, job_id={result.get('job_id')}", file=sys.stderr)
-    if result.get('result'):
-        print(f"[Agent Route] score={result['result'].get('score')}", file=sys.stderr)
-
-    from fastapi.responses import JSONResponse
-    return JSONResponse({
-        "status": result.get("status", "ok"),
-        "job_id": result.get("job_id"),
-        "message": result.get("message", "Evaluation complete!"),
-        "result": result.get("result"),
-    })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 @router.get("/api/agent/status/{job_id}")
