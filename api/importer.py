@@ -48,7 +48,7 @@ class YouTubeImporter:
         return self._available
 
     async def get_channel_info(self, channel_id: str = "", username: str = "") -> dict:
-        """Get YouTube channel info."""
+        """Get YouTube channel info. Supports channel ID, @handle, or channel name."""
         if not self.available:
             return self._mock_channel_info(channel_id, username)
 
@@ -56,10 +56,30 @@ class YouTubeImporter:
             "part": "snippet,statistics,contentDetails",
             "key": self.api_key,
         }
-        if channel_id:
-            params["id"] = channel_id
+
+        # Handle @username format (new YouTube handles)
+        if username and username.startswith("@"):
+            # Use search API to find channel by handle
+            search_params = {
+                "part": "snippet",
+                "q": username,
+                "type": "channel",
+                "maxResults": 1,
+                "key": self.api_key,
+            }
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{self.BASE_URL}/search", params=search_params, timeout=15.0)
+                data = resp.json()
+                if data.get("items"):
+                    channel_id = data["items"][0]["snippet"]["channelId"]
+                    params["id"] = channel_id
+                else:
+                    return {}
         elif username:
+            # Try forUsername first (legacy usernames)
             params["forUsername"] = username
+        elif channel_id:
+            params["id"] = channel_id
         else:
             return {}
 
@@ -80,6 +100,44 @@ class YouTubeImporter:
                     "uploads_playlist_id": item["contentDetails"]["relatedPlaylists"].get("uploads", ""),
                     "url": f"https://youtube.com/channel/{item['id']}",
                 }
+
+        # If forUsername failed, try search by name
+        if username and not channel_id:
+            search_params = {
+                "part": "snippet",
+                "q": username,
+                "type": "channel",
+                "maxResults": 3,
+                "key": self.api_key,
+            }
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{self.BASE_URL}/search", params=search_params, timeout=15.0)
+                data = resp.json()
+                if data.get("items"):
+                    item = data["items"][0]
+                    ch_id = item["snippet"]["channelId"]
+                    # Get full channel info
+                    params2 = {
+                        "part": "snippet,statistics,contentDetails",
+                        "id": ch_id,
+                        "key": self.api_key,
+                    }
+                    resp2 = await client.get(f"{self.BASE_URL}/channels", params=params2, timeout=15.0)
+                    data2 = resp2.json()
+                    if data2.get("items"):
+                        item2 = data2["items"][0]
+                        return {
+                            "platform": "youtube",
+                            "platform_id": item2["id"],
+                            "title": item2["snippet"]["title"],
+                            "description": item2["snippet"].get("description", ""),
+                            "thumbnail": item2["snippet"]["thumbnails"].get("high", {}).get("url", ""),
+                            "subscriber_count": int(item2["statistics"].get("subscriberCount", 0)),
+                            "video_count": int(item2["statistics"].get("videoCount", 0)),
+                            "view_count": int(item2["statistics"].get("viewCount", 0)),
+                            "uploads_playlist_id": item2["contentDetails"]["relatedPlaylists"].get("uploads", ""),
+                            "url": f"https://youtube.com/channel/{item2['id']}",
+                        }
         return {}
 
     async def get_channel_videos(self, channel_id: str = "", username: str = "", max_results: int = 500) -> list[dict]:
