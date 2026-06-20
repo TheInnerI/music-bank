@@ -238,6 +238,38 @@
             </div>
         </div>
 
+        {# YouTube Stats Widget #}
+        {% if youtube_stats %}
+        <div class="youtube-stats-widget">
+            <h3>▶️ YouTube Channel</h3>
+            <div class="yt-stats-grid">
+                <div class="yt-stat">
+                    <span class="yt-stat-value">{{ artist.youtube_subscribers|default('—') }}</span>
+                    <span class="yt-stat-label">Subscribers</span>
+                </div>
+                <div class="yt-stat">
+                    <span class="yt-stat-value">{{ artist.youtube_views|default('—') }}</span>
+                    <span class="yt-stat-label">Total Views</span>
+                </div>
+                <div class="yt-stat">
+                    <span class="yt-stat-value">{{ tracks|length }}</span>
+                    <span class="yt-stat-label">Videos Imported</span>
+                </div>
+                <div class="yt-stat">
+                    <span class="yt-stat-value">${{ "%.2f"|format(lifetime_earnings / 100) }}</span>
+                    <span class="yt-stat-label">Lifetime Earned</span>
+                </div>
+            </div>
+            <a href="{{ youtube_stats.url }}" target="_blank" class="btn btn-sm">View Channel →</a>
+        </div>
+        {% else %}
+        <div class="youtube-connect-prompt">
+            <h3>▶️ Connect YouTube</h3>
+            <p class="text-muted">Import your YouTube videos to start tracking plays and earnings.</p>
+            <a href="/import" class="btn btn-sm">Import from YouTube</a>
+        </div>
+        {% endif %}
+
         <h3>Your Tracks</h3>
         {% if tracks %}
         <table class="data-table">
@@ -320,4 +352,16 @@ async function requestPayout() {
     }
 }
 </script>
+
+<style>
+.youtube-stats-widget { background: linear-gradient(135deg, rgba(255,0,0,0.1), rgba(255,0,0,0.05)); border: 1px solid rgba(255,0,0,0.2); border-radius: var(--radius); padding: 20px; margin: 24px 0; }
+.youtube-stats-widget h3 { margin-bottom: 16px; color: #ff4444; }
+.yt-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+.yt-stat { text-align: center; }
+.yt-stat-value { display: block; font-size: 20px; font-weight: 700; font-family: var(--font-heading); color: var(--text); }
+.yt-stat-label { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); }
+.youtube-connect-prompt { background: var(--surface); border: 1px dashed var(--border); border-radius: var(--radius); padding: 24px; margin: 24px 0; text-align: center; }
+.youtube-connect-prompt h3 { margin-bottom: 8px; }
+.youtube-connect-prompt p { margin-bottom: 16px; }
+</style>
 {% endblock %}

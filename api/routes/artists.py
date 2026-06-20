@@ -34,6 +34,32 @@ async def dashboard(request: Request):
         # Get followers count
         cursor = await db.execute("SELECT COUNT(*) FROM follows WHERE followed_id=?", (artist["id"],))
         followers = (await cursor.fetchone())[0]
+
+        # Get YouTube channel info if linked
+        youtube_stats = None
+        cursor = await db.execute(
+            "SELECT url, platform_id FROM artist_platform_links WHERE artist_id=? AND platform='youtube'",
+            (artist["id"],)
+        )
+        yt_link = await cursor.fetchone()
+        if yt_link:
+            # Extract channel ID from URL
+            yt_url = yt_link["url"]
+            channel_id = yt_link["platform_id"]
+            if not channel_id and "channel/" in yt_url:
+                channel_id = yt_url.split("channel/")[1].split("/")[0].split("?")[0]
+            youtube_stats = {
+                "channel_id": channel_id,
+                "url": yt_url,
+                "platform_id": yt_link["platform_id"],
+            }
+
+        # Get lifetime earnings
+        cursor = await db.execute(
+            "SELECT COALESCE(SUM(amount_cents),0) as total FROM earnings_ledger WHERE artist_id=?",
+            (artist["id"],)
+        )
+        lifetime_earnings = (await cursor.fetchone())["total"]
     finally:
         await db.close()
 
@@ -43,6 +69,8 @@ async def dashboard(request: Request):
         "tracks": tracks,
         "transactions": transactions,
         "followers": followers,
+        "youtube_stats": youtube_stats,
+        "lifetime_earnings": lifetime_earnings,
     })
 
 
