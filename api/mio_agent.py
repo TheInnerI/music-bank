@@ -131,10 +131,37 @@ class MIOJobService:
                 }
 
     async def get_job_status(self, job_id: str) -> dict:
-        """Check job status on Virtuals ACP."""
-        if not self.available:
-            return {"status": "completed", "result": {"score": 75, "feedback": "Good track!"}}
+        """Check job status. In mock mode, simulates completion after a delay."""
+        import time
+        import random
 
+        if not self.available or job_id.startswith('mock_') or job_id.startswith('local_'):
+            # Mock mode: simulate job processing
+            # Use job_id hash to deterministically decide if "enough time has passed"
+            job_hash = sum(ord(c) for c in job_id)
+            elapsed = time.time() - (job_hash % 100000)  # pseudo-random start time
+
+            if elapsed > 3:  # After 3 seconds, return completed
+                scores = {
+                    "music_quick_eval": {"score": random.randint(60, 95), "feedback": "Good production quality. Catchy hook. Consider tightening the intro."},
+                    "music_standard_eval": {"score": random.randint(55, 90), "feedback": "Solid track with good marketability. Production is clean. The bridge could be stronger. Genre fit is excellent."},
+                    "music_portfolio_audit": {"score": random.randint(50, 85), "feedback": "Portfolio shows consistent quality. Growth trajectory is positive. Recommend focusing on building a signature sound."},
+                    "music_batch_eval": {"score": random.randint(60, 88), "feedback": "Batch complete. Top tracks identified. Genre distribution is healthy."},
+                }
+                # Find matching score by checking job_id or default
+                result = None
+                for key, val in scores.items():
+                    if key in job_id:
+                        result = val
+                        break
+                if not result:
+                    result = {"score": random.randint(60, 90), "feedback": "Evaluation complete. Track shows good potential with room for improvement."}
+
+                return {"status": "completed", "result": result, "mock": True}
+            else:
+                return {"status": "processing", "mock": True}
+
+        # Real Virtuals ACP API call
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 f"{self.base_url}/acp/jobs/{job_id}",
