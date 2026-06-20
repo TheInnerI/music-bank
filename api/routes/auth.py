@@ -116,3 +116,106 @@ async def logout():
     response = RedirectResponse(url="/")
     response.delete_cookie("mb_token")
     return response
+
+
+# ═══ Password Reset ═══
+
+@router.get("/forgot-password")
+async def forgot_password_page(request: Request):
+    return respond("auth/forgot_password.html", {"request": request, "error": None, "success": None})
+
+
+@router.post("/forgot-password")
+async def forgot_password(request: Request):
+    form = await request.form()
+    email = form.get("email", "").strip().lower()
+
+    if not email:
+        return respond("auth/forgot_password.html", {"request": request, "error": "Email is required", "success": None})
+
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT id, display_name, email FROM artists WHERE email=?", (email,))
+        artist = await cursor.fetchone()
+    finally:
+        await db.close()
+
+    if not artist:
+        # Don't reveal if email exists
+        return respond("auth/forgot_password.html", {"request": request, "error": None, "success": "If an account exists with that email, a reset link has been sent."})
+
+    # Generate reset token (valid 1 hour)
+    import secrets
+    reset_token = secrets.token_urlsafe(32)
+    token_hash = bcrypt.hashpw(reset_token.encode(), bcrypt.gensalt()).decode()
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    db = await get_db()
+    try:
+        await db.execute(
+            "INSERT INTO password_resets (artist_id, token_hash, expires_at) VALUES (?,?,?)",
+            (artist["id"], token_hash, expires_at.isoformat())
+        )
+        await db.commit()
+    finally:
+        await db.close()
+
+    # Send reset email
+    from api.email_service import email_service
+    await email_service.send_password_reset(
+        to_email=artist["email"],
+        reset_token=reset_token,
+        artist_name=artist["display_name"]
+    )
+
+    return respond("auth/forgot_password.html", {"request": request, "error": None, "success": "If an account exists with that email, a reset link has been sent."})
+
+
+@router.get("/reset-password")
+async def reset_password_page(request: Request):
+    token = request.query_params.get("token", "")
+    if not token:
+        raise HTTPException(status_code=400, detail="Invalid token")
+    return respond("auth/reset_password.html", {"request": request, "token": token, "error": None})
+
+
+@router.post("/reset-password")
+async def reset_password(request: Request):
+    form = await request.form()
+    token = form.get("token", "")
+    new_password = form.get("password", "")
+
+    if not token or not new_password:
+        return respond("auth/reset_password.html", {"request": request, "token": token, "error": "Password is required"})
+
+    if len(new_password) < 8:
+        return respond("auth/reset_password.html", {"request": request, "token": token, "error": "Password must be at least 8 characters"})
+
+    db = await get_db()
+    try:
+        # Find valid reset token
+        cursor = await db.execute(
+            "SELECT pr.artist_id, pr.token_hash, pr.expires_at FROM password_resets pr WHERE pr.used=0"
+        )
+        rows = await cursor.fetchall()
+
+        artist_id = None
+        for row in rows:
+            if bcrypt.checkpw(token.encode(), row["token_hash"].encode()):
+                expires = datetime.fromisoformat(row["expires_at"])
+                if datetime.now(timezone.utc) < expires:
+                    artist_id = row["artist_id"]
+                    break
+
+        if not artist_id:
+            return respond("auth/reset_password.html", {"request": request, "token": "", "error": "Invalid or expired token"})
+
+        # Update password
+        pw_hash = bcrypt.hashpw(new_password.encode(), bcrypt.gensalt()).decode()
+        await db.execute("UPDATE artists SET password_hash=? WHERE id=?", (pw_hash, artist_id))
+        await db.execute("UPDATE password_resets SET used=1 WHERE artist_id=?", (artist_id,))
+        await db.commit()
+    finally:
+        await db.close()
+
+    return respond("auth/login.html", {"request": request, "error": None, "success": "Password reset successfully! You can now log in."})

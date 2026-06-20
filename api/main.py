@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from api.database import init_db, seed_demo_data
 from api.templates import respond
-from api.routes import auth, artists, tracks, discovery, banking, api, legal, import_routes, storage_routes
+from api.routes import auth, artists, tracks, discovery, banking, api, legal, import_routes, storage_routes, upgrade_routes
 
 # Configuration
 from api.config import SECRET_KEY, ALGORITHM, TOKEN_EXPIRE_HOURS
@@ -58,6 +58,7 @@ app.include_router(api.router, prefix="", tags=["api"])
 app.include_router(legal.router, prefix="", tags=["legal"])
 app.include_router(import_routes.router, prefix="", tags=["import"])
 app.include_router(storage_routes.router, prefix="", tags=["storage"])
+app.include_router(upgrade_routes.router, prefix="", tags=["upgrade"])
 
 # Graph page
 @app.get("/graph")

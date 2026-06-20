@@ -506,6 +506,17 @@ async def init_db():
             CREATE INDEX IF NOT EXISTS idx_licensing_track ON licensing_deals(track_id);
             CREATE INDEX IF NOT EXISTS idx_ai_tools_track ON track_ai_tools(track_id);
 
+            -- Password resets
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                artist_id INTEGER NOT NULL,
+                token_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (artist_id) REFERENCES artists(id)
+            );
+
             -- Import history
             CREATE TABLE IF NOT EXISTS import_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
