@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
-"""Write .env.example file without linter interference."""
+"""Write correct .env.example."""
 
 content = """# Music Bank — Environment Configuration
-# Copy this to .env and fill in your values
 
 # ═══ Core ═══
-# Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
-MUSIC_BANK_SECRET=change-this-to-a-random-secret-key-in-production
+# Generate: python3 -c "import secrets; print(secrets.token_hex(32))"
+MUSIC_BANK_SECRET=your-random-secret-key-here
 
-# ═══ Stripe (for fan deposits + payouts) ═══
+# ═══ Stripe (2 keys needed) ═══
 # Get from https://dashboard.stripe.com/apikeys
-# Use sk_live_... for production, sk_test_... for testing
-STRIPE_SECRET_KEY=sk_live_your_stripe_secret_key_here
+STRIPE_SECRET_KEY=sk_live_...
+# Get from https://dashboard.stripe.com/webhooks -> Signing secret
+STRIPE_WEBHOOK_SECRET=whsec_...
 
 # ═══ YouTube Data API (for importing videos) ═══
 # Get from https://console.cloud.google.com/apis/credentials
-YOUTUBE_API_KEY=your_youtube_api_key_here
+YOUTUBE_API_KEY=YOUR_YOUTUBE_API_KEY
 
 # ═══ Spotify Web API (for importing tracks) ═══
 # Get from https://developer.spotify.com/dashboard
-SPOTIFY_CLIENT_ID=your_spotify_client_id_here
-SPOTIFY_CLIENT_SECRET=your_spotify_client_secret_here
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+
+# ═══ Base/USDC (for crypto payments) ═══
+# Your Base wallet address that receives USDC deposits
+BASE_PLATFORM_WALLET=0x...
+
+# ═══ $MIO Token (for MIO payments on Base) ═══
+# MIO token contract address on Base mainnet
+MIO_CONTRACT_ADDRESS=0x...
 
 # ═══ Platform Settings ═══
 PLATFORM_FEE_PCT=5.0
@@ -30,4 +38,4 @@ APP_URL=https://musicbank.innerinetcompany.com
 with open(".env.example", "w") as f:
     f.write(content)
 
-print("✅ .env.example written")
+print("OK - .env.example written")
