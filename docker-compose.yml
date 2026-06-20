@@ -10,14 +10,8 @@ services:
       - ./music_bank.db:/app/music_bank.db
       - ./static/audio:/app/static/audio
       - ./data:/app/data
-    environment:
-      - MUSIC_BANK_SECRET=${MUSIC_BANK_SECRET:-change-me-in-production}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
-      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
-      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY:-}
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
-      - APP_URL=${APP_URL:-https://musicbank.innerinetcompany.com}
+    env_file:
+      - .env
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
