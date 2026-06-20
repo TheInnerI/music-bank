@@ -5,72 +5,129 @@
 {% block content %}
 <div class="search-page">
     <div class="search-header">
-        <h1>🔍 Semantic Search</h1>
-        <p class="text-muted">Search by vibe, mood, sound — not just tags. "Chill electronic with piano" or "artists like early Bon Iver."</p>
+        <h1>🔍 Search Music</h1>
+        <p class="text-muted">Search across all platforms. Filter by source.</p>
 
         <form action="/search" method="get" class="search-form">
-            <input type="text" name="q" value="{{ query }}" placeholder="Describe what you're looking for..." class="search-input">
+            <input type="text" name="q" value="{{ query }}" placeholder="Search tracks, artists, genres, moods..." class="search-input">
+            <input type="hidden" name="platform" id="platform-input" value="{{ platform }}">
             <button type="submit" class="btn">Search</button>
         </form>
 
+        {# Platform Tabs #}
+        <div class="platform-tabs">
+            <button class="platform-tab {{ 'active' if platform == 'all' }}" onclick="setPlatform('all')">
+                All <span class="tab-count">{{ counts.all }}</span>
+            </button>
+            <button class="platform-tab {{ 'active' if platform == 'youtube' }}" onclick="setPlatform('youtube')">
+                ▶️ YouTube <span class="tab-count">{{ counts.youtube }}</span>
+            </button>
+            <button class="platform-tab {{ 'active' if platform == 'spotify' }}" onclick="setPlatform('spotify')">
+                🎧 Spotify <span class="tab-count">{{ counts.spotify }}</span>
+            </button>
+            <button class="platform-tab {{ 'active' if platform == 'soundcloud' }}" onclick="setPlatform('soundcloud')">
+                ☁️ SoundCloud <span class="tab-count">{{ counts.soundcloud }}</span>
+            </button>
+            <button class="platform-tab {{ 'active' if platform == 'bandcamp' }}" onclick="setPlatform('bandcamp')">
+                🏕️ Bandcamp <span class="tab-count">{{ counts.bandcamp }}</span>
+            </button>
+        </div>
+
         <div class="search-examples">
             <span class="text-muted">Try:</span>
-            <button class="search-example" onclick="setQuery('chill lo-fi beats with piano')">chill lo-fi beats</button>
-            <button class="search-example" onclick="setQuery('energetic electronic dance music')">energetic EDM</button>
-            <button class="search-example" onclick="setQuery('soulful blues guitar raw')">soulful blues</button>
-            <button class="search-example" onclick="setQuery('indie folk campfire acoustic')">indie folk</button>
+            <button class="search-example" onclick="setQuery('chill lo-fi beats')">chill lo-fi</button>
+            <button class="search-example" onclick="setQuery('energetic electronic dance')">energetic EDM</button>
+            <button class="search-example" onclick="setQuery('soulful blues guitar')">soulful blues</button>
+            <button class="search-example" onclick="setQuery('indie folk acoustic')">indie folk</button>
             <button class="search-example" onclick="setQuery('dark atmospheric synthwave')">dark synthwave</button>
         </div>
     </div>
 
     {% if query %}
-    <div class="search-results">
-        <h2>Results for "{{ query }}"</h2>
-        {% if results %}
-        <div class="track-list">
-            {% for r in results %}
-            <div class="track-list-item">
-                <div class="track-list-cover"><span>{{ r.title[0] }}</span></div>
-                <div class="track-list-info">
-                    <a href="/tracks/{{ r.track_id }}" class="track-title">{{ r.title }}</a>
-                    <a href="/artists/{{ r.artist_username }}" class="track-artist">{{ r.artist_name }}</a>
-                    <span class="text-muted">{{ r.mood|default('') }} {{ r.genre|default('') }}</span>
+        <div class="search-results">
+            <h2>Results for "{{ query }}" {% if platform != 'all' %}— {{ platform|title }}{% endif %}</h2>
+
+            {% if tracks %}
+            <div class="track-list">
+                {% for t in tracks %}
+                <div class="track-list-item">
+                    <div class="track-list-cover"><span>{{ t.title[0] }}</span></div>
+                    <div class="track-list-info">
+                        <a href="/tracks/{{ t.id }}" class="track-title">{{ t.title }}</a>
+                        <a href="/artists/{{ t.artist_username }}" class="track-artist">{{ t.artist_name }}</a>
+                        <span class="text-muted">{{ t.mood|default('') }} {{ t.genre|default('') }}</span>
+                    </div>
+                    {% if t.audio_url and ('youtube.com' in t.audio_url or 'youtu.be' in t.audio_url) %}
+                    <span class="platform-badge youtube">▶️</span>
+                    {% elif t.audio_url and 'spotify' in t.audio_url %}
+                    <span class="platform-badge spotify">🎧</span>
+                    {% endif %}
+                    <span class="track-plays">▶ {{ t.plays }}</span>
+                    <a href="/tracks/{{ t.id }}" class="btn btn-sm">View</a>
                 </div>
-                <span class="search-score" title="Semantic match score">
-                    {{ "%.0f"|format(r.score * 100) }}% match
-                </span>
-                <button class="play-btn-sm" onclick="playTrack({{ r.track_id }}, '/static/audio/demo.mp3')">▶</button>
+                {% endfor %}
             </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state">
-            <p>No tracks found matching "{{ query }}". Try different words or <a href="/auth/register">upload your own!</a></p>
+            {% else %}
+            <div class="empty-state">
+                <p>No tracks found matching "{{ query }}"{% if platform != 'all' %} on {{ platform|title }}{% endif %}.</p>
+            </div>
+            {% endif %}
+
+            {# Semantic results #}
+            {% if semantic_results %}
+            <h3 style="margin-top:24px">🔮 Similar (Semantic)</h3>
+            <div class="track-list">
+                {% for r in semantic_results %}
+                <div class="track-list-item">
+                    <div class="track-list-cover"><span>{{ r.title[0] }}</span></div>
+                    <div class="track-list-info">
+                        <a href="/tracks/{{ r.track_id }}" class="track-title">{{ r.title }}</a>
+                        <a href="/artists/{{ r.artist_username }}" class="track-artist">{{ r.artist_name }}</a>
+                    </div>
+                    <span class="search-score">{{ "%.0f"|format(r.score * 100) }}% match</span>
+                    <a href="/tracks/{{ r.track_id }}" class="btn btn-sm">View</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% endif %}
     </div>
-    {% endif %}
-</div>
 
-<!-- Player Bar -->
-<div id="player-bar" class="player-bar hidden">
-    <div class="player-info"><span id="player-title">—</span></div>
-    <div class="player-controls">
-        <button onclick="togglePlay()">⏯</button>
-        <input type="range" id="player-seek" value="0" max="100" oninput="seek(this.value)">
+    <!-- Player Bar -->
+    <div id="player-bar" class="player-bar hidden">
+        <div class="player-info"><span id="player-title">—</span></div>
+        <div class="player-controls">
+            <button onclick="togglePlay()">⏯</button>
+            <input type="range" id="player-seek" value="0" max="100" oninput="seek(this.value)">
+        </div>
+        <div class="player-time">
+            <span id="player-current">0:00</span> / <span id="player-duration">0:00</span>
+        </div>
+        <audio id="audio-player" ontimeupdate="updatePlayer()" onloadedmetadata="updateDuration()"></audio>
     </div>
-    <div class="player-time">
-        <span id="player-current">0:00</span> / <span id="player-duration">0:00</span>
-    </div>
-    <audio id="audio-player" ontimeupdate="updatePlayer()" onloadedmetadata="updateDuration()"></audio>
-</div>
-{% endblock %}
+    {% endblock %}
 
-{% block scripts %}
-<script>
-function setQuery(q) {
-    document.querySelector('.search-input').value = q;
-    document.querySelector('.search-form').submit();
-}
-</script>
-{% endblock %}
+    {% block scripts %}
+    <script>
+    function setQuery(q) {
+        document.querySelector('.search-input').value = q;
+        document.querySelector('.search-form').submit();
+    }
+    function setPlatform(p) {
+        document.getElementById('platform-input').value = p;
+        document.querySelector('.search-form').submit();
+    }
+    </script>
+
+    <style>
+    .platform-tabs { display: flex; gap: 4px; margin: 16px 0; flex-wrap: wrap; }
+    .platform-tab { padding: 8px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-full); color: var(--text-muted); font-size: 13px; cursor: pointer; transition: all 0.2s; }
+    .platform-tab:hover { border-color: var(--observer); color: var(--text); }
+    .platform-tab.active { background: var(--observer); border-color: var(--observer); color: white; }
+    .platform-tab .tab-count { font-size: 11px; opacity: 0.7; margin-left: 4px; }
+    .platform-badge { font-size: 14px; padding: 2px 6px; border-radius: 4px; }
+    .platform-badge.youtube { background: rgba(255,0,0,0.2); }
+    .platform-badge.spotify { background: rgba(30,215,96,0.2); }
+    </style>
+    {% endblock %}
