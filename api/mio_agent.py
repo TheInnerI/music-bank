@@ -161,12 +161,20 @@ class MIOJobService:
     def _mock_job(self, track_title: str, artist_name: str, eval_type: str) -> dict:
         """Mock job for development (no Virtuals API key)."""
         import random
+        durations = {
+            "micro_eval": "~10 seconds",
+            "standard_eval": "~30 seconds",
+            "full_eval": "~2 minutes",
+            "cluster_eval": "~10 minutes",
+        }
+        job_id = f"mock_{random.randint(1000,9999)}"
         return {
             "status": "created",
-            "job_id": f"mock_{random.randint(1000,9999)}",
+            "job_id": job_id,
             "virtuals_job_id": None,
             "phase": "request",
-            "message": f"Mock job created for '{track_title}' by {artist_name}. Type: {eval_type}. In production, this would create a real ACP job on Virtuals.",
+            "message": f"Mock job created for '{track_title}' by {artist_name}. Type: {eval_type}.",
+            "estimated_completion": durations.get(eval_type, "~30 seconds"),
             "mock": True,
         }
 

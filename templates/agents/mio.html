@@ -165,15 +165,12 @@ async function startEvaluation(tierId) {
         const data = await resp.json();
 
         if (data.status === 'ok') {
-            // Show success + job status
-            const msg = data.message + '\\nJob ID: ' + data.job_id;
+            const jobId = data.job_id || 'pending';
+            const msg = data.message + '\nJob ID: ' + jobId;
             alert(msg);
 
-            // Add to evaluations list
-            addEvaluationToList(data.job_id, tierId, 'pending');
-
-            // Start polling for results
-            pollJobStatus(data.job_id);
+            addEvaluationToList(jobId, tierId, 'pending');
+            pollJobStatus(jobId);
         } else {
             alert('Error: ' + (data.message || 'Unknown error'));
         }
