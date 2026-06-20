@@ -19,12 +19,25 @@
             </div>
             {% if track.description %}<p class="track-description">{{ track.description }}</p>{% endif %}
             <div class="track-actions">
+                {% if track.audio_url and 'youtube.com' in track.audio_url or 'youtu.be' in track.audio_url %}
+                <button class="btn btn-lg" onclick="toggleYouTubePlayer()">▶ Play on YouTube</button>
+                {% elif track.audio_url %}
                 <button class="btn btn-lg" onclick="playTrack({{ track.id }}, '{{ track.audio_url }}')">▶ Play</button>
+                {% else %}
+                <button class="btn btn-lg" disabled title="No audio file uploaded">▶ Play</button>
+                {% endif %}
                 <button class="btn btn-lg btn-ghost" onclick="toggleLike({{ track.id }})" id="like-btn">
                     {{ '♥' if liked else '♡' }} <span id="like-count">{{ track.likes }}</span>
                 </button>
                 <button class="btn btn-lg btn-ghost" onclick="showDepositModal({{ track.id }}, '{{ track.title }}')">💰 Support Artist</button>
             </div>
+
+            {# YouTube embed container (hidden by default) #}
+            {% if track.audio_url and ('youtube.com' in track.audio_url or 'youtu.be' in track.audio_url) %}
+            <div id="youtube-embed" class="youtube-embed hidden">
+                <iframe id="youtube-iframe" width="100%" height="315" frameborder="0" allowfullscreen></iframe>
+            </div>
+            {% endif %}
             <div class="track-stats-bar">
                 <span>▶ {{ track.plays }} plays</span>
                 <span>♥ {{ track.likes }} likes</span>
@@ -117,6 +130,16 @@
 
         <!-- USDC Rail -->
         <div id="deposit-rail-usdc" class="deposit-rail-panel hidden">
+            {% if artist_wallet %}
+            <div class="crypto-deposit-info">
+                <p class="text-sm"><strong>Step 1:</strong> Send USDC on Base to:</p>
+                <div class="wallet-address-box">
+                    <code id="artist-usdc-wallet">{{ artist_wallet }}</code>
+                    <button class="btn btn-sm" onclick="copyWallet('artist-usdc-wallet')">📋 Copy</button>
+                </div>
+                <p class="text-sm" style="margin-top:8px"><strong>Step 2:</strong> Paste your transaction hash below:</p>
+            </div>
+            {% endif %}
             <div class="form-group">
                 <label>Amount (USDC)</label>
                 <div class="preset-amounts">
@@ -140,7 +163,6 @@
                 <input type="text" id="usdc-message" placeholder="Love this track!">
             </div>
             <button class="btn btn-full" onclick="submitUsdcDeposit()">Verify USDC Deposit</button>
-            <p class="text-muted text-sm" style="margin-top:8px">Send USDC on Base to the artist's wallet, then paste tx hash above.</p>
         </div>
 
         <!-- $MIO Rail -->
@@ -294,5 +316,47 @@ async function toggleLike(trackId) {
     const data = await resp.json();
     document.getElementById('like-btn').innerHTML = `${data.liked ? '♥' : '♡'} <span id="like-count">${data.count}</span>`;
 }
+
+// YouTube embed toggle
+function toggleYouTubePlayer() {
+    const embed = document.getElementById('youtube-embed');
+    const iframe = document.getElementById('youtube-iframe');
+    if (embed && iframe) {
+        if (embed.classList.contains('hidden')) {
+            const audioUrl = '{{ track.audio_url }}';
+            let videoId = '';
+            if (audioUrl.includes('watch?v=')) {
+                videoId = audioUrl.split('watch?v=')[1].split('&')[0];
+            } else if (audioUrl.includes('youtu.be/')) {
+                videoId = audioUrl.split('youtu.be/')[1].split('?')[0];
+            }
+            if (videoId) {
+                iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                embed.classList.remove('hidden');
+            }
+        } else {
+            iframe.src = '';
+            embed.classList.add('hidden');
+        }
+    }
+}
+
+// Copy wallet address
+function copyWallet(elementId) {
+    const el = document.getElementById(elementId);
+    if (el) {
+        navigator.clipboard.writeText(el.textContent).then(() => {
+            alert('Wallet address copied!');
+        });
+    }
+}
 </script>
+
+<style>
+.youtube-embed { margin-top: 16px; border-radius: 12px; overflow: hidden; }
+.youtube-embed.hidden { display: none; }
+.crypto-deposit-info { background: rgba(34, 211, 238, 0.1); border: 1px solid var(--breath); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; }
+.wallet-address-box { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.wallet-address-box code { flex: 1; background: var(--deep); padding: 8px 12px; border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 12px; word-break: break-all; color: var(--breath); }
+</style>
 {% endblock %}
