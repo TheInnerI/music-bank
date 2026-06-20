@@ -31,11 +31,14 @@ class MIOJobService:
 
     def _get_client(self):
         """Get OpenAI-compatible client for Virtuals Compute API."""
-        from openai import OpenAI
-        return OpenAI(
-            api_key=self.virtuals_api_key,
-            base_url=self.compute_base_url,
-        )
+        try:
+            from openai import OpenAI
+            return OpenAI(
+                api_key=self.virtuals_api_key,
+                base_url=self.compute_base_url,
+            )
+        except ImportError:
+            raise RuntimeError("openai package not installed. Run: pip install openai")
 
     async def create_job(
         self,
