@@ -129,6 +129,10 @@ class MIOJobService:
 
             prompt = prompts.get(eval_type, prompts["music_standard_eval"])
 
+            # Log the prompt for debugging
+            print(f"[MIO Agent] Eval type: {eval_type}, Track: {track_title}, URL: {track_url}")
+            print(f"[MIO Agent] Prompt: {prompt[:200]}...")
+
             # Call Virtuals Compute API (OpenAI-compatible)
             response = client.chat.completions.create(
                 model="z-ai-glm-5-1",
@@ -149,8 +153,9 @@ class MIOJobService:
                 max_tokens=2000,
             )
 
-            # Parse the response
+            # Log the response for debugging
             result_text = response.choices[0].message.content.strip()
+            print(f"[MIO Agent] Response: {result_text[:300]}")
             try:
                 result_data = json.loads(result_text)
             except json.JSONDecodeError:
