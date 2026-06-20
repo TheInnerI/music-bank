@@ -460,3 +460,94 @@ def calculate_2026_costs(track_count: int, avg_track_mb: float = 7.2) -> dict:
     })
 
     return results
+
+
+# ═══════════════════════════════════════════════════════════
+# BACKWARD COMPATIBILITY — Re-export old names
+# ═══════════════════════════════════════════════════════════
+
+# Old name mapping for backwards compatibility
+CLOUD_STORAGE_PROVIDERS = FREE_CLOUD_STORAGE
+
+# Minimal STORAGE_TIERS for routes that import it
+STORAGE_TIERS = {
+    "free": {
+        "name": "Observer Free",
+        "price_monthly": 0,
+        "price_yearly": 0,
+        "storage_mb": 500,
+        "max_tracks": 50,
+        "max_upload_size_mb": 10,
+        "features": ["500 MB storage", "Up to 50 tracks"],
+        "limitations": ["No sync licensing", "No API access"],
+        "cta": "Start Observing",
+        "popular": False,
+    },
+    "pro": {
+        "name": "Observer Pro",
+        "price_monthly": 9.99,
+        "price_yearly": 99.99,
+        "storage_gb": 50,
+        "max_tracks": 1000,
+        "max_upload_size_mb": 50,
+        "features": ["50 GB storage", "Up to 1,000 tracks", "Sync licensing"],
+        "limitations": ["No custom domain"],
+        "cta": "Upgrade to Pro",
+        "popular": True,
+    },
+    "label": {
+        "name": "Observer Label",
+        "price_monthly": 49.99,
+        "price_yearly": 499.99,
+        "storage_gb": 500,
+        "max_tracks": 10000,
+        "max_upload_size_mb": 100,
+        "features": ["500 GB storage", "Up to 10,000 tracks", "Custom domain", "API access"],
+        "limitations": [],
+        "cta": "Contact Sales",
+        "popular": False,
+    },
+    "self_hosted": {
+        "name": "Observer Node (Self-Hosted)",
+        "price_monthly": 0,
+        "price_yearly": 0,
+        "storage_gb": -1,
+        "max_tracks": -1,
+        "max_upload_size_mb": -1,
+        "features": ["Unlimited storage", "Unlimited tracks", "Full source code", "All features"],
+        "requirements": ["Linux server", "Docker"],
+        "cta": "Deploy Your Own Node",
+        "popular": False,
+        "github_url": "https://github.com/TheInnerI/music-bank",
+    },
+}
+
+class _Calculator:
+    @staticmethod
+    def calculate_needs(track_count, duration=3.5, quality="mp3_320"):
+        quality_sizes = {"mp3_128": 2.8, "mp3_320": 7.2, "flac": 15.0, "wav": 30.3}
+        avg_size = quality_sizes.get(quality, 7.2) * (duration / 3.0)
+        total_gb = (track_count * avg_size) / 1024
+        return {"track_count": track_count, "quality": quality, "avg_track_size_mb": round(avg_size, 1), "total_audio_gb": round(total_gb, 2), "total_metadata_mb": round(track_count * 6.5 / 1024, 2), "total_storage_gb": round(total_gb + (track_count * 6.5 / 1024 / 1024), 2)}
+
+    @staticmethod
+    def calculate_costs(storage_gb, provider="cloudflare_r2"):
+        return {"cloudflare_r2": {"storage": round(max(0, storage_gb - 10) * 0.015, 2), "egress": 0, "total": round(max(0, storage_gb - 10) * 0.015, 2)}}
+
+    @staticmethod
+    def recommend_tier(track_count, storage_gb):
+        if track_count <= 50: return {"tier": "free", "reason": "Within Free tier limits"}
+        elif track_count <= 1000: return {"tier": "pro", "reason": "Need Pro for 1000 tracks"}
+        elif track_count <= 10000: return {"tier": "label", "reason": "Need Label for 10000 tracks"}
+        return {"tier": "self_hosted", "reason": "Unlimited storage needed"}
+
+class _UpgradeFlow:
+    @staticmethod
+    def get_upgrade_options(current_tier):
+        return []
+    @staticmethod
+    def get_storage_options(current_storage_gb):
+        return []
+
+calculator = _Calculator()
+upgrade_flow = _UpgradeFlow()
