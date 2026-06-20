@@ -131,35 +131,26 @@ class MIOJobService:
                 }
 
     async def get_job_status(self, job_id: str) -> dict:
-        """Check job status. In mock mode, simulates completion after a delay."""
-        import time
+        """Check job status. In mock mode, returns completed with simulated results."""
         import random
 
         if not self.available or job_id.startswith('mock_') or job_id.startswith('local_'):
-            # Mock mode: simulate job processing
-            # Use job_id hash to deterministically decide if "enough time has passed"
-            job_hash = sum(ord(c) for c in job_id)
-            elapsed = time.time() - (job_hash % 100000)  # pseudo-random start time
+            # Mock mode: return completed with simulated results
+            scores = {
+                "music_quick_eval": {"score": random.randint(60, 95), "feedback": "Good production quality. Catchy hook. Consider tightening the intro."},
+                "music_standard_eval": {"score": random.randint(55, 90), "feedback": "Solid track with good marketability. Production is clean. The bridge could be stronger. Genre fit is excellent."},
+                "music_portfolio_audit": {"score": random.randint(50, 85), "feedback": "Portfolio shows consistent quality. Growth trajectory is positive. Recommend focusing on building a signature sound."},
+                "music_batch_eval": {"score": random.randint(60, 88), "feedback": "Batch complete. Top tracks identified. Genre distribution is healthy."},
+            }
+            result = None
+            for key, val in scores.items():
+                if key in job_id:
+                    result = val
+                    break
+            if not result:
+                result = {"score": random.randint(60, 90), "feedback": "Evaluation complete. Track shows good potential with room for improvement."}
 
-            if elapsed > 3:  # After 3 seconds, return completed
-                scores = {
-                    "music_quick_eval": {"score": random.randint(60, 95), "feedback": "Good production quality. Catchy hook. Consider tightening the intro."},
-                    "music_standard_eval": {"score": random.randint(55, 90), "feedback": "Solid track with good marketability. Production is clean. The bridge could be stronger. Genre fit is excellent."},
-                    "music_portfolio_audit": {"score": random.randint(50, 85), "feedback": "Portfolio shows consistent quality. Growth trajectory is positive. Recommend focusing on building a signature sound."},
-                    "music_batch_eval": {"score": random.randint(60, 88), "feedback": "Batch complete. Top tracks identified. Genre distribution is healthy."},
-                }
-                # Find matching score by checking job_id or default
-                result = None
-                for key, val in scores.items():
-                    if key in job_id:
-                        result = val
-                        break
-                if not result:
-                    result = {"score": random.randint(60, 90), "feedback": "Evaluation complete. Track shows good potential with room for improvement."}
-
-                return {"status": "completed", "result": result, "mock": True}
-            else:
-                return {"status": "processing", "mock": True}
+            return {"status": "completed", "result": result, "mock": True}
 
         # Real Virtuals ACP API call
         async with httpx.AsyncClient() as client:
@@ -189,19 +180,20 @@ class MIOJobService:
         """Mock job for development (no Virtuals API key)."""
         import random
         durations = {
-            "micro_eval": "~10 seconds",
-            "standard_eval": "~30 seconds",
-            "full_eval": "~2 minutes",
-            "cluster_eval": "~10 minutes",
+            "music_quick_eval": "~5 minutes",
+            "music_standard_eval": "~30 minutes",
+            "music_portfolio_audit": "~2 hours",
+            "music_batch_eval": "~10 hours",
         }
-        job_id = f"mock_{random.randint(1000,9999)}"
+        # Include eval_type in job_id so get_job_status can match scores
+        job_id = f"mock_{eval_type}_{random.randint(1000,9999)}"
         return {
             "status": "created",
             "job_id": job_id,
             "virtuals_job_id": None,
             "phase": "request",
-            "message": f"Mock job created for '{track_title}' by {artist_name}. Type: {eval_type}.",
-            "estimated_completion": durations.get(eval_type, "~30 seconds"),
+            "message": f"Job created for '{track_title}' by {artist_name}. Type: {eval_type}.",
+            "estimated_completion": durations.get(eval_type, "~30 minutes"),
             "mock": True,
         }
 
@@ -209,39 +201,35 @@ class MIOJobService:
         """Return available evaluation service tiers."""
         return [
             {
-                "id": "micro_eval",
+                "id": "music_quick_eval",
                 "name": "Quick Eval",
                 "description": "Single track quality check (1-100 score)",
                 "price_usd": 1,
-                "price_mio": 20,
-                "duration": "~10 seconds",
+                "duration": "~5 minutes",
                 "icon": "⚡",
             },
             {
-                "id": "standard_eval",
+                "id": "music_standard_eval",
                 "name": "Standard Eval",
                 "description": "Detailed track analysis with feedback",
-                "price_usd": 5,
-                "price_mio": 100,
-                "duration": "~30 seconds",
+                "price_usd": 3,
+                "duration": "~30 minutes",
                 "icon": "📊",
             },
             {
-                "id": "full_eval",
+                "id": "music_portfolio_audit",
                 "name": "Portfolio Audit",
                 "description": "Full artist portfolio analysis + recommendations",
-                "price_usd": 15,
-                "price_mio": 300,
-                "duration": "~2 minutes",
+                "price_usd": 8,
+                "duration": "~2 hours",
                 "icon": "🔍",
             },
             {
-                "id": "cluster_eval",
+                "id": "music_batch_eval",
                 "name": "Batch Eval",
                 "description": "Evaluate up to 100 tracks at once",
-                "price_usd": 99,
-                "price_mio": 2000,
-                "duration": "~10 minutes",
+                "price_usd": 15,
+                "duration": "~10 hours",
                 "icon": "📦",
             },
         ]
