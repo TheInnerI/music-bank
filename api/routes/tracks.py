@@ -27,6 +27,17 @@ async def track_detail(request: Request, track_id: int):
             (track["artist_id"], track_id)
         )
         more_tracks = [dict(r) for r in await cursor.fetchall()]
+
+        # Get artist's wallet address for crypto deposits
+        cursor = await db.execute(
+            "SELECT base_wallet_address, eth_wallet_address FROM artists WHERE id=?",
+            (track["artist_id"],)
+        )
+        artist_row = await cursor.fetchone()
+        artist_wallet = None
+        if artist_row:
+            artist_wallet = artist_row["base_wallet_address"] or artist_row["eth_wallet_address"]
+
     finally:
         await db.close()
 
@@ -42,16 +53,6 @@ async def track_detail(request: Request, track_id: int):
             liked = await cursor.fetchone() is not None
         finally:
             await db.close()
-
-# Get artist's wallet address for crypto deposits
-        cursor = await db.execute(
-            "SELECT base_wallet_address, eth_wallet_address FROM artists WHERE id=?",
-            (track["artist_id"],)
-        )
-        artist_row = await cursor.fetchone()
-        artist_wallet = None
-        if artist_row:
-            artist_wallet = artist_row["base_wallet_address"] or artist_row["eth_wallet_address"]
 
     return respond("track/detail.html", {
         "request": request,
