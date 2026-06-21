@@ -3,7 +3,13 @@ from fastapi import APIRouter, Request
 from api.database import get_db
 from api.templates import respond
 from api.routes.auth import get_current_artist
-from api.vectors import search_service
+
+# Optional: TurboVec semantic search
+search_service = None
+try:
+    from api.vectors import search_service
+except Exception as e:
+    print(f"[Discovery] TurboVec not available: {e}")
 
 router = APIRouter()
 
@@ -11,10 +17,11 @@ router = APIRouter()
 @router.post("/api/search/index")
 async def index_search(request: Request):
     """Index all tracks for semantic search."""
+    if not search_service:
+        return {"status": "error", "message": "TurboVec not available"}
     current_artist = await get_current_artist(request)
     if not current_artist:
         return {"status": "error", "message": "Must be logged in"}
-
     db = await get_db()
     try:
         count = await search_service.index_tracks(db)
@@ -27,16 +34,16 @@ async def index_search(request: Request):
 
 @router.get("/search")
 async def search_page(request: Request):
-    """Search with platform tabs + TurboVec semantic search."""
+    """Search with platform tabs + optional TurboVec semantic search."""
     q = request.query_params.get("q", "").strip()
     platform = request.query_params.get("platform", "all").lower()
     tracks = []
-    semantic_results = []
     counts = {"all": 0, "youtube": 0, "spotify": 0, "soundcloud": 0, "bandcamp": 0}
 
     try:
         db = await get_db()
         try:
+            # Get all tracks
             cursor = await db.execute(
                 "SELECT t.id, t.title, t.plays, t.genre, t.audio_url, "
                 "a.username as artist_username, a.display_name as artist_name "
@@ -46,7 +53,8 @@ async def search_page(request: Request):
             all_tracks = [dict(r) for r in await cursor.fetchall()]
             counts["all"] = len(all_tracks)
 
-            if q and len(q) >= 2:
+            # Try semantic search if we have a query and search_service is available
+            if q and len(q) >= 2 and search_service:
                 try:
                     if not search_service._track_embeddings:
                         await search_service.index_tracks(db)
@@ -55,29 +63,24 @@ async def search_page(request: Request):
                         semantic_results = [r for r in semantic_results if r.get("audio_url") and platform in r["audio_url"].lower()]
                     if semantic_results:
                         tracks = semantic_results
-                    else:
-                        q_lower = q.lower()
-                        tracks = [t for t in all_tracks if q_lower in t["title"].lower() or q_lower in (t["genre"] or "").lower() or q_lower in t["artist_name"].lower()]
                 except Exception as e:
                     print(f"[Search] TurboVec error: {e}")
-                    q_lower = q.lower()
-                    tracks = [t for t in all_tracks if q_lower in t["title"].lower() or q_lower in (t["genre"] or "").lower() or q_lower in t["artist_name"].lower()]
-            else:
-                tracks = all_tracks
 
+            # Fall back to text search if no semantic results
+            if not tracks:
+                q_lower = q.lower() if q else ""
+                if q_lower:
+                    tracks = [t for t in all_tracks if
+                        q_lower in t["title"].lower() or
+                        q_lower in (t["genre"] or "").lower() or
+                        q_lower in t["artist_name"].lower()
+                    ]
+                else:
+                    tracks = all_tracks
+
+            # Filter by platform
             if platform and platform != "all":
-                if platform == "youtube":
-                    counts["youtube"] = len([t for t in all_tracks if t["audio_url"] and ("youtube.com" in t["audio_url"] or "youtu.be" in t["audio_url"])])
-                    tracks = [t for t in tracks if t.get("audio_url") and ("youtube.com" in t["audio_url"] or "youtu.be" in t["audio_url"])]
-                elif platform == "spotify":
-                    counts["spotify"] = len([t for t in all_tracks if t["audio_url"] and "spotify" in t["audio_url"]])
-                    tracks = [t for t in tracks if t.get("audio_url") and "spotify" in t["audio_url"]]
-                elif platform == "soundcloud":
-                    counts["soundcloud"] = len([t for t in all_tracks if t["audio_url"] and "soundcloud" in t["audio_url"]])
-                    tracks = [t for t in tracks if t.get("audio_url") and "soundcloud" in t["audio_url"]]
-                elif platform == "bandcamp":
-                    counts["bandcamp"] = len([t for t in all_tracks if t["audio_url"] and "bandcamp" in t["audio_url"]])
-                    tracks = [t for t in tracks if t.get("audio_url") and "bandcamp" in t["audio_url"]]
+                tracks = [t for t in tracks if t.get("audio_url") and platform in t["audio_url"].lower()]
         finally:
             await db.close()
     except Exception as e:
