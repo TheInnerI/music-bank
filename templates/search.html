@@ -63,6 +63,7 @@
                     {% elif 'spotify' in t.audio_url %}
                     <span class="platform-badge spotify">🎧</span>
                     {% endif %}
+                    {% endif %}
                     <span class="track-plays">▶ {{ t.plays }}</span>
                     <a href="/tracks/{{ t.id }}" class="btn btn-sm">View</a>
                 </div>
