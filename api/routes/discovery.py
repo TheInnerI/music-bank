@@ -9,15 +9,16 @@ router = APIRouter()
 
 @router.get("/search")
 async def search_page(request: Request):
-    """Search with platform tabs."""
+    """Search with platform tabs + TurboVec semantic search."""
     q = request.query_params.get("q", "").strip()
     platform = request.query_params.get("platform", "all").lower()
     tracks = []
+    semantic_results = []
     counts = {"all": 0, "youtube": 0, "spotify": 0, "soundcloud": 0, "bandcamp": 0}
 
     db = await get_db()
     try:
-        # Get all tracks (no filter)
+        # Get all tracks
         cursor = await db.execute(
             "SELECT t.id, t.title, t.plays, t.genre, t.audio_url, "
             "a.username as artist_username, a.display_name as artist_name "
@@ -27,27 +28,51 @@ async def search_page(request: Request):
         all_tracks = [dict(r) for r in await cursor.fetchall()]
         counts["all"] = len(all_tracks)
 
-        # Filter by search query if provided
+        # Try TurboVec semantic search if we have a query
         if q and len(q) >= 2:
-            q_lower = q.lower()
-            tracks = [t for t in all_tracks if
-                q_lower in t["title"].lower() or
-                q_lower in (t["genre"] or "").lower() or
-                q_lower in t["artist_name"].lower()
-            ]
+            try:
+                from api.vectors import search_service
+                semantic_results = await search_service.search_tracks(q, db, 20)
+                # Filter semantic results by platform if not 'all'
+                if platform and platform != "all":
+                    semantic_results = [r for r in semantic_results if r.get("audio_url") and platform in r["audio_url"].lower()]
+                # If we have semantic results, use them
+                if semantic_results:
+                    tracks = semantic_results
+                else:
+                    # Fall back to text search
+                    q_lower = q.lower()
+                    tracks = [t for t in all_tracks if
+                        q_lower in t["title"].lower() or
+                        q_lower in (t["genre"] or "").lower() or
+                        q_lower in t["artist_name"].lower()
+                    ]
+            except Exception as e:
+                # TurboVec failed — fall back to text search
+                print(f"[Search] TurboVec error: {e}")
+                q_lower = q.lower()
+                tracks = [t for t in all_tracks if
+                    q_lower in t["title"].lower() or
+                    q_lower in (t["genre"] or "").lower() or
+                    q_lower in t["artist_name"].lower()
+                ]
         else:
             tracks = all_tracks
 
         # Filter by platform if not 'all'
         if platform and platform != "all":
             if platform == "youtube":
-                tracks = [t for t in tracks if t["audio_url"] and ("youtube.com" in t["audio_url"] or "youtu.be" in t["audio_url"])]
+                counts["youtube"] = len([t for t in all_tracks if t["audio_url"] and ("youtube.com" in t["audio_url"] or "youtu.be" in t["audio_url"])])
+                tracks = [t for t in tracks if t.get("audio_url") and ("youtube.com" in t["audio_url"] or "youtu.be" in t["audio_url"])]
             elif platform == "spotify":
-                tracks = [t for t in tracks if t["audio_url"] and "spotify" in t["audio_url"]]
+                counts["spotify"] = len([t for t in all_tracks if t["audio_url"] and "spotify" in t["audio_url"]])
+                tracks = [t for t in tracks if t.get("audio_url") and "spotify" in t["audio_url"]]
             elif platform == "soundcloud":
-                tracks = [t for t in tracks if t["audio_url"] and "soundcloud" in t["audio_url"]]
+                counts["soundcloud"] = len([t for t in all_tracks if t["audio_url"] and "soundcloud" in t["audio_url"]])
+                tracks = [t for t in tracks if t.get("audio_url") and "soundcloud" in t["audio_url"]]
             elif platform == "bandcamp":
-                tracks = [t for t in tracks if t["audio_url"] and "bandcamp" in t["audio_url"]]
+                counts["bandcamp"] = len([t for t in all_tracks if t["audio_url"] and "bandcamp" in t["audio_url"]])
+                tracks = [t for t in tracks if t.get("audio_url") and "bandcamp" in t["audio_url"]]
 
     finally:
         await db.close()
