@@ -329,3 +329,30 @@ class GraphBuilder:
         return {"nodes": [], "edges": []}
 
 graph_builder = GraphBuilder()
+
+
+# Stub for VectorMath (not yet implemented in new vectors module)
+class VectorMath:
+    @staticmethod
+    def cosine_similarity(a, b):
+        if not a or not b:
+            return 0.0
+        dot = sum(x * y for x, y in zip(a, b))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(x * x for x in b))
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+
+    @staticmethod
+    def serialize(vec):
+        import struct
+        return struct.pack(f'{len(vec)}f', *vec)
+
+    @staticmethod
+    def deserialize(data):
+        import struct
+        n = len(data) // 4
+        return list(struct.unpack(f'{n}f', data))
+
+vector_math = VectorMath()
