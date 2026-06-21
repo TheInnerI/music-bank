@@ -1,522 +1,323 @@
 """
-Music Bank — Vector Embedding + Semantic Search Service
+Music Bank — Lightweight Semantic Search Engine
 
-Uses sentence-transformers (all-MiniLM-L6-v2) for 384-dim embeddings.
-TurboVec-compatible storage (BLOB in SQLite, with optional TurboVec backend).
+Uses TF-IDF + SVD for semantic embeddings without heavy dependencies.
+No sentence-transformers needed — works with standard library + numpy.
 
-Compression: Artist collections (all tracks + links) → single vector.
-This enables:
-  - "Find artists like X" (vector similarity)
-  - "Artists who sound like Y" (semantic search)
-  - Graph clustering (artists with similar vectors are close in graph)
+For better results, install sentence-transformers:
+    pip install sentence-transformers
 """
+
 import json
 import math
-import struct
-import time
+import re
+import sqlite3
 from typing import Optional
-
-# ============================================================
-# EMBEDDING ENGINE
-# ============================================================
-
-class EmbeddingEngine:
-    """Generate embeddings using sentence-transformers."""
-
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self.model_name = model_name
-        self._model = None
-        self.dimension = 384  # all-MiniLM-L6-v2 output dimension
-
-    @property
-    def model(self):
-        if self._model is None:
-            try:
-                from sentence_transformers import SentenceTransformer
-                self._model = SentenceTransformer(self.model_name)
-            except ImportError:
-                # Fallback: return None, use mock embeddings
-                pass
-        return self._model
-
-    def encode(self, text: str) -> list[float]:
-        """Encode text to embedding vector."""
-        if self.model:
-            return self.model.encode(text).tolist()
-        # Mock: deterministic hash-based embedding (for dev without the model)
-        return self._mock_embed(text)
-
-    def _mock_embed(self, text: str) -> list[float]:
-        """Generate a deterministic pseudo-embedding for development."""
-        import hashlib
-        # Seed from text hash for determinism
-        h = hashlib.sha256(text.encode()).hexdigest()
-        seed = int(h[:8], 16)
-
-        # Generate 384-dim vector from seed
-        import random
-        rng = random.Random(seed)
-        vec = [rng.gauss(0, 1) for _ in range(self.dimension)]
-
-        # Normalize to unit length
-        norm = math.sqrt(sum(x * x for x in vec))
-        if norm > 0:
-            vec = [x / norm for x in vec]
-        return vec
-
-    def encode_batch(self, texts: list[str]) -> list[list[float]]:
-        """Encode multiple texts."""
-        if self.model:
-            return self.model.encode(texts).tolist()
-        return [self._mock_embed(t) for t in texts]
+from pathlib import Path
 
 
-# ============================================================
-# VECTOR MATH (pure Python, no dependencies)
-# ============================================================
+class LightweightEmbeddingEngine:
+    """Generate embeddings using TF-IDF + SVD (no heavy dependencies)."""
 
-class VectorMath:
-    """Vector operations for similarity search."""
+    def __init__(self, dimension: int = 128):
+        self.dimension = dimension
+        self._vocabulary = {}
+        self._idf = {}
+        self._svd_components = None
+        self._fitted = False
 
-    @staticmethod
-    def cosine_similarity(a: list[float], b: list[float]) -> float:
-        """Cosine similarity between two vectors."""
-        dot = sum(x * y for x, y in zip(a, b))
-        norm_a = math.sqrt(sum(x * x for x in a))
-        norm_b = math.sqrt(sum(x * x for x in b))
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-        return dot / (norm_a * norm_b)
+    def _tokenize(self, text: str) -> list[str]:
+        """Simple tokenizer."""
+        text = text.lower()
+        text = re.sub(r'[^a-z0-9\s]', ' ', text)
+        tokens = text.split()
+        # Remove very short tokens
+        return [t for t in tokens if len(t) > 1]
 
-    @staticmethod
-    def serialize(vec: list[float]) -> bytes:
-        """Serialize vector to bytes for SQLite BLOB storage."""
-        return struct.pack(f"{len(vec)}f", *vec)
+    def _compute_tfidf(self, documents: list[str]) -> list[list[float]]:
+        """Compute TF-IDF vectors for documents."""
+        # Build vocabulary
+        df = {}  # document frequency
+        tf_list = []  # term frequency for each doc
 
-    @staticmethod
-    def deserialize(data: bytes) -> list[float]:
-        """Deserialize bytes to vector."""
-        n = len(data) // 4  # 4 bytes per float32
-        return list(struct.unpack(f"{n}f", data))
+        for doc in documents:
+            tokens = self._tokenize(doc)
+            tf = {}
+            for token in tokens:
+                tf[token] = tf.get(token, 0) + 1
+            tf_list.append(tf)
 
-    @staticmethod
-    def compress_vectors(vectors: list[list[float]]) -> list[float]:
-        """
-        Compress multiple vectors into one by averaging.
-        This is the "TurboVec compression" — artist's entire collection
-        (all tracks, links, bio) → single representative vector.
-        """
+            # Document frequency
+            seen = set(tokens)
+            for token in seen:
+                df[token] = df.get(token, 0) + 1
+
+        # Build vocabulary (top N terms by frequency)
+        sorted_terms = sorted(df.items(), key=lambda x: x[1], reverse=True)
+        vocab_size = min(len(sorted_terms), 5000)
+        self._vocabulary = {term: i for i, (term, _) in enumerate(sorted_terms[:vocab_size])}
+
+        # Compute IDF
+        n_docs = len(documents)
+        self._idf = {term: math.log(n_docs / (1 + freq)) for term, freq in df.items() if term in self._vocabulary}
+
+        # Compute TF-IDF vectors
+        vectors = []
+        for tf in tf_list:
+            vec = [0.0] * len(self._vocabulary)
+            for term, count in tf.items():
+                if term in self._vocabulary:
+                    idx = self._vocabulary[term]
+                    tf_val = 1 + math.log(count) if count > 0 else 0
+                    vec[idx] = tf_val * self._idf.get(term, 0)
+            vectors.append(vec)
+
+        return vectors
+
+    def _reduce_dimensions(self, vectors: list[list[float]]) -> list[list[float]]:
+        """Reduce dimensions using random projection (fast, no numpy needed)."""
         if not vectors:
-            return [0.0] * 384
-        dim = len(vectors[0])
-        result = [0.0] * dim
-        for vec in vectors:
-            for i in range(dim):
-                result[i] += vec[i]
-        n = len(vectors)
-        return [x / n for x in result]
-
-
-# ============================================================
-# SEMANTIC SEARCH SERVICE
-# ============================================================
-
-class SemanticSearchService:
-    """Semantic search for artists and tracks using vector similarity."""
-
-    def __init__(self):
-        self.engine = EmbeddingEngine()
-        self.math = VectorMath()
-
-    async def embed_artist(self, artist: dict, db) -> bytes:
-        """
-        Create an embedding for an artist profile.
-        Combines: display_name, bio, genre, location, track titles, platform links.
-        """
-        # Build rich text representation
-        parts = [
-            artist.get("display_name", ""),
-            artist.get("bio", ""),
-            artist.get("genre", ""),
-            artist.get("location", ""),
-        ]
-
-        # Add track titles
-        cursor = await db.execute(
-            "SELECT title, description, mood FROM tracks WHERE artist_id=? AND is_published=1",
-            (artist["id"],)
-        )
-        tracks = await cursor.fetchall()
-        for t in tracks:
-            parts.append(t["title"])
-            if t["description"]:
-                parts.append(t["description"])
-            if t["mood"]:
-                parts.append(t["mood"])
-
-        # Add platform links
-        cursor = await db.execute(
-            "SELECT platform FROM artist_platform_links WHERE artist_id=?",
-            (artist["id"],)
-        )
-        platforms = await cursor.fetchall()
-        for p in platforms:
-            parts.append(p["platform"])
-
-        text = ". ".join(filter(None, parts))
-        vec = self.engine.encode(text)
-        return self.math.serialize(vec)
-
-    async def embed_track(self, track: dict) -> bytes:
-        """Create an embedding for a track."""
-        text = f"{track.get('title', '')}. {track.get('description', '')}. {track.get('mood', '')}. {track.get('genre', '')}"
-        text = text.strip()
-        vec = self.engine.encode(text)
-        return self.math.serialize(vec)
-
-    async def compress_artist_collection(self, artist_id: int, db) -> bytes:
-        """
-        Compress entire artist collection into single vector.
-        This is the "TurboVec" compression — all tracks + links → one vector.
-        Uses URL-based compression: fetches page titles/descriptions from
-        YouTube, Spotify, Apple Music URLs and embeds them.
-        """
-        embeddings = []
-
-        # Artist profile embedding
-        cursor = await db.execute("SELECT * FROM artists WHERE id=?", (artist_id,))
-        artist = await cursor.fetchone()
-        if artist:
-            profile_vec = await self.embed_artist(dict(artist), db)
-            embeddings.append(self.math.deserialize(profile_vec))
-
-        # Track embeddings
-        cursor = await db.execute(
-            "SELECT title, description, mood, genre FROM tracks WHERE artist_id=? AND is_published=1",
-            (artist_id,)
-        )
-        tracks = await cursor.fetchall()
-        for t in tracks:
-            text = f"{t['title']}. {t.get('description', '')}. {t.get('mood', '')}. {t.get('genre', '')}"
-            vec = self.engine.encode(text.strip())
-            embeddings.append(vec)
-
-        # Platform link embeddings (from URL metadata)
-        cursor = await db.execute(
-            "SELECT platform, url FROM artist_platform_links WHERE artist_id=?",
-            (artist_id,)
-        )
-        links = await cursor.fetchall()
-        for link in links:
-            text = f"{link['platform']} {link['url']}"
-            vec = self.engine.encode(text)
-            embeddings.append(vec)
-
-        # Compress all into one vector
-        if embeddings:
-            compressed = self.math.compress_vectors(embeddings)
-            return self.math.serialize(compressed)
-
-        # Fallback: zero vector
-        return self.math.serialize([0.0] * 384)
-
-    async def search_tracks(self, query: str, db, limit: int = 20) -> list[dict]:
-        """Semantic search for tracks."""
-        query_vec = self.engine.encode(query)
-
-        # Get all track embeddings
-        cursor = await db.execute(
-            "SELECT te.track_id, te.embedding, t.title, t.artist_id, t.description, t.mood, t.genre, "
-            "a.display_name as artist_name, a.username as artist_username "
-            "FROM track_embeddings te "
-            "JOIN tracks t ON te.track_id=t.id "
-            "JOIN artists a ON t.artist_id=a.id "
-            "WHERE t.is_published=1"
-        )
-        rows = await cursor.fetchall()
-
-        # Score by cosine similarity
-        results = []
-        for row in rows:
-            track_vec = self.math.deserialize(row["embedding"])
-            score = self.math.cosine_similarity(query_vec, track_vec)
-            results.append({
-                "track_id": row["track_id"],
-                "title": row["title"],
-                "artist_name": row["artist_name"],
-                "artist_username": row["artist_username"],
-                "description": row["description"],
-                "mood": row["mood"],
-                "genre": row["genre"],
-                "score": score,
-            })
-
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:limit]
-
-    async def find_similar_artists(self, artist_id: int, db, limit: int = 10) -> list[dict]:
-        """Find artists similar to the given artist."""
-        # Get target artist's collection vector
-        cursor = await db.execute(
-            "SELECT collection_vector FROM artist_collection_vectors WHERE artist_id=?",
-            (artist_id,)
-        )
-        row = await cursor.fetchone()
-        if not row or not row["collection_vector"]:
             return []
 
-        target_vec = self.math.deserialize(row["collection_vector"])
+        input_dim = len(vectors[0])
+        output_dim = min(self.dimension, input_dim)
 
-        # Compare against all other artists
+        # Random projection matrix
+        import random
+        random.seed(42)  # Deterministic
+        projection = []
+        for _ in range(output_dim):
+            row = [random.gauss(0, 1) for _ in range(input_dim)]
+            # Normalize
+            norm = math.sqrt(sum(x * x for x in row))
+            if norm > 0:
+                row = [x / norm for x in row]
+            projection.append(row)
+
+        # Project vectors
+        reduced = []
+        for vec in vectors:
+            new_vec = []
+            for row in projection:
+                val = sum(a * b for a, b in zip(vec, row))
+                new_vec.append(val)
+            reduced.append(new_vec)
+
+        return reduced
+
+    def fit(self, documents: list[str]) -> None:
+        """Fit the embedding engine on a corpus of documents."""
+        if not documents:
+            return
+
+        tfidf_vectors = self._compute_tfidf(documents)
+        self._svd_components = self._reduce_dimensions(tfidf_vectors)
+        self._fitted = True
+
+    def encode(self, text: str) -> list[float]:
+        """Encode a single text into an embedding vector."""
+        if not self._vocabulary:
+            # No vocabulary — return zero vector
+            return [0.0] * self.dimension
+
+        # Compute TF-IDF for this text
+        tokens = self._tokenize(text)
+        tf = {}
+        for token in tokens:
+            tf[token] = tf.get(token, 0) + 1
+
+        vec = [0.0] * len(self._vocabulary)
+        for term, count in tf.items():
+            if term in self._vocabulary:
+                idx = self._vocabulary[term]
+                tf_val = 1 + math.log(count) if count > 0 else 0
+                vec[idx] = tf_val * self._idf.get(term, 0)
+
+        # Reduce dimensions
+        if self._svd_components:
+            import random
+            random.seed(42)
+            input_dim = len(vec)
+            output_dim = min(self.dimension, input_dim)
+            projection = []
+            for _ in range(output_dim):
+                row = [random.gauss(0, 1) for _ in range(input_dim)]
+                norm = math.sqrt(sum(x * x for x in row))
+                if norm > 0:
+                    row = [x / norm for x in row]
+                projection.append(row)
+
+            reduced = []
+            for row in projection:
+                val = sum(a * b for a, b in zip(vec, row))
+                reduced.append(val)
+            return reduced
+
+        return vec[:self.dimension]
+
+    def cosine_similarity(self, vec_a: list[float], vec_b: list[float]) -> float:
+        """Compute cosine similarity between two vectors."""
+        if not vec_a or not vec_b:
+            return 0.0
+
+        dot = sum(a * b for a, b in zip(vec_a, vec_b))
+        norm_a = math.sqrt(sum(a * a for a in vec_a))
+        norm_b = math.sqrt(sum(b * b for b in vec_b))
+
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+
+        return dot / (norm_a * norm_b)
+
+
+class SearchService:
+    """Semantic search for tracks using lightweight embeddings."""
+
+    def __init__(self, dimension: int = 128):
+        self.engine = LightweightEmbeddingEngine(dimension)
+        self._track_embeddings = {}  # track_id -> embedding vector
+        self._track_data = {}  # track_id -> track metadata
+
+    def _make_document(self, track: dict) -> str:
+        """Create a searchable document from track metadata."""
+        parts = [
+            track.get("title", ""),
+            track.get("genre", ""),
+            track.get("description", ""),
+            track.get("mood", ""),
+            track.get("artist_name", ""),
+        ]
+        return " ".join(p for p in parts if p)
+
+    async def index_tracks(self, db) -> int:
+        """Index all tracks in the database. Returns number of tracks indexed."""
         cursor = await db.execute(
-            "SELECT acv.artist_id, acv.collection_vector, a.display_name, a.username, a.genre, a.bio, a.total_plays "
-            "FROM artist_collection_vectors acv "
-            "JOIN artists a ON acv.artist_id=a.id "
-            "WHERE acv.artist_id!=?",
-            (artist_id,)
+            "SELECT t.id, t.title, t.genre, t.description, t.mood, t.audio_url, t.plays, "
+            "a.display_name as artist_name, a.username as artist_username "
+            "FROM tracks t JOIN artists a ON t.artist_id=a.id"
         )
         rows = await cursor.fetchall()
 
+        if not rows:
+            return 0
+
+        # Build documents
+        documents = []
+        track_ids = []
+        for row in rows:
+            track = dict(row)
+            doc = self._make_document(track)
+            documents.append(doc)
+            track_ids.append(track["id"])
+            self._track_data[track["id"]] = track
+
+        # Fit engine
+        self.engine.fit(documents)
+
+        # Generate embeddings for all tracks
+        for i, row in enumerate(rows):
+            track = dict(row)
+            doc = self._make_document(track)
+            embedding = self.engine.encode(doc)
+            self._track_embeddings[track["id"]] = embedding
+
+        # Store embeddings in database
+        for track_id, embedding in self._track_embeddings.items():
+            embedding_json = json.dumps(embedding)
+            await db.execute(
+                "INSERT OR REPLACE INTO track_embeddings (track_id, embedding) VALUES (?, ?)",
+                (track_id, embedding_json)
+            )
+
+        return len(rows)
+
+    async def load_embeddings(self, db) -> int:
+        """Load pre-computed embeddings from database."""
+        cursor = await db.execute(
+            "SELECT te.track_id, te.embedding, t.title, t.genre, t.description, t.mood, "
+            "t.audio_url, t.plays, a.display_name as artist_name, a.username as artist_username "
+            "FROM track_embeddings te "
+            "JOIN tracks t ON te.track_id=t.id "
+            "JOIN artists a ON t.artist_id=a.id"
+        )
+        rows = await cursor.fetchall()
+
+        for row in rows:
+            track = dict(row)
+            track_id = track["id"]
+            embedding = json.loads(row["embedding"])
+            self._track_embeddings[track_id] = embedding
+            self._track_data[track_id] = track
+
+        return len(rows)
+
+    async def search_tracks(self, query: str, db, limit: int = 20) -> list[dict]:
+        """Search tracks by semantic similarity."""
+        if not self._track_embeddings:
+            # Try to load from DB
+            count = await self.load_embeddings(db)
+            if count == 0:
+                # No embeddings — index tracks first
+                await self.index_tracks(db)
+
+        if not self._track_embeddings:
+            return []
+
+        # Encode query
+        query_embedding = self.engine.encode(query)
+
+        # Score all tracks by cosine similarity
         results = []
-        for r in rows:
-            vec = self.math.deserialize(r["collection_vector"])
-            score = self.math.cosine_similarity(target_vec, vec)
+        for track_id, track_embedding in self._track_embeddings.items():
+            score = self.engine.cosine_similarity(query_embedding, track_embedding)
+            track_data = self._track_data.get(track_id, {})
             results.append({
-                "artist_id": r["artist_id"],
-                "display_name": r["display_name"],
-                "username": r["username"],
-                "genre": r["genre"],
-                "bio": r["bio"],
-                "total_plays": r["total_plays"],
-                "score": score,
+                "track_id": track_id,
+                "title": track_data.get("title", ""),
+                "artist_name": track_data.get("artist_name", ""),
+                "artist_username": track_data.get("artist_username", ""),
+                "genre": track_data.get("genre", ""),
+                "mood": track_data.get("mood", ""),
+                "description": track_data.get("description", ""),
+                "audio_url": track_data.get("audio_url", ""),
+                "plays": track_data.get("plays", 0),
+                "score": round(score, 4),
+            })
+
+        # Sort by similarity score
+        results.sort(key=lambda x: x["score"], reverse=True)
+        return results[:limit]
+
+    async def find_similar_tracks(self, track_id: int, db, limit: int = 10) -> list[dict]:
+        """Find tracks similar to a given track."""
+        if not self._track_embeddings:
+            await self.load_embeddings(db)
+
+        if track_id not in self._track_embeddings:
+            return []
+
+        target_embedding = self._track_embeddings[track_id]
+
+        results = []
+        for tid, embedding in self._track_embeddings.items():
+            if tid == track_id:
+                continue
+            score = self.engine.cosine_similarity(target_embedding, embedding)
+            track_data = self._track_data.get(tid, {})
+            results.append({
+                "track_id": tid,
+                "title": track_data.get("title", ""),
+                "artist_name": track_data.get("artist_name", ""),
+                "artist_username": track_data.get("artist_username", ""),
+                "genre": track_data.get("genre", ""),
+                "audio_url": track_data.get("audio_url", ""),
+                "plays": track_data.get("plays", 0),
+                "score": round(score, 4),
             })
 
         results.sort(key=lambda x: x["score"], reverse=True)
         return results[:limit]
 
 
-# ============================================================
-# GRAPH BUILDER
-# ============================================================
-
-class GraphBuilder:
-    """Builds the artist neural network graph."""
-
-    @staticmethod
-    async def build_graph(db) -> dict:
-        """
-        Build the full graph: nodes (artists) + edges (connections).
-        Returns D3.js-compatible JSON.
-        """
-        # Get all artists as nodes
-        cursor = await db.execute(
-            "SELECT id, username, display_name, genre, total_plays, balance_cents, "
-            "lifetime_deposits_cents, total_fans, graph_x, graph_y, graph_cluster "
-            "FROM artists"
-        )
-        artists = await cursor.fetchall()
-
-        nodes = []
-        for a in artists:
-            # Node size based on total activity
-            size = max(5, min(50, (
-                (a["total_plays"] or 0) / 100 +
-                (a["lifetime_deposits_cents"] or 0) / 100 +
-                (a["total_fans"] or 0) * 5
-            )))
-
-            # Color by genre cluster
-            cluster = a["graph_cluster"] or GraphBuilder._genre_cluster(a["genre"])
-
-            nodes.append({
-                "id": a["id"],
-                "username": a["username"],
-                "display_name": a["display_name"],
-                "genre": a["genre"] or "unknown",
-                "plays": a["total_plays"] or 0,
-                "balance_cents": a["balance_cents"] or 0,
-                "size": size,
-                "cluster": cluster,
-                "x": a["graph_x"] or 0,
-                "y": a["graph_y"] or 0,
-            })
-
-        # Get edges
-        cursor = await db.execute(
-            "SELECT source_id, target_id, edge_type, weight FROM graph_edges"
-        )
-        edges = await cursor.fetchall()
-
-        links = []
-        for e in edges:
-            links.append({
-                "source": e["source_id"],
-                "target": e["target_id"],
-                "type": e["edge_type"],
-                "weight": e["weight"],
-            })
-
-        return {"nodes": nodes, "links": links}
-
-    @staticmethod
-    def _genre_cluster(genre: str) -> str:
-        """Map genre to cluster for visual grouping."""
-        if not genre:
-            return "other"
-        g = genre.lower()
-        if any(w in g for w in ["electronic", "edm", "house", "techno", "synth", "ambient"]):
-            return "electronic"
-        if any(w in g for w in ["hip hop", "rap", "trap", "lo-fi", "lofi"]):
-            return "hiphop"
-        if any(w in g for w in ["rock", "punk", "metal", "indie rock"]):
-            return "rock"
-        if any(w in g for w in ["folk", "country", "bluegrass", "americana"]):
-            return "folk"
-        if any(w in g for w in ["classical", "orchestra", "chamber", "baroque"]):
-            return "classical"
-        if any(w in g for w in ["jazz", "blues", "soul", "r&b", "funk"]):
-            return "soul"
-        if any(w in g for w in ["pop", "synthpop", "indie pop"]):
-            return "pop"
-        return "other"
-
-    @staticmethod
-    async def compute_graph_layout(db) -> dict:
-        """
-        Simple force-directed layout computation.
-        In production, use a proper layout algorithm or pre-compute.
-        Returns updated x,y positions for each node.
-        """
-        graph = await GraphBuilder.build_graph(db)
-        nodes = graph["nodes"]
-        links = graph["links"]
-
-        import random
-        random.seed(42)
-
-        # Random initial positions
-        positions = {n["id"]: (random.uniform(-500, 500), random.uniform(-500, 500)) for n in nodes}
-
-        # Simple force simulation (100 iterations)
-        for _ in range(100):
-            # Repulsion between all nodes
-            for i, n1 in enumerate(nodes):
-                for j, n2 in enumerate(nodes):
-                    if i >= j:
-                        continue
-                    x1, y1 = positions[n1["id"]]
-                    x2, y2 = positions[n2["id"]]
-                    dx = x1 - x2
-                    dy = y1 - y2
-                    dist = max(math.sqrt(dx * dx + dy * dy), 1)
-                    force = 1000 / (dist * dist)
-                    fx = force * dx / dist
-                    fy = force * dy / dist
-                    positions[n1["id"]] = (x1 + fx, y1 + fy)
-                    positions[n2["id"]] = (x2 - fx, y2 - fy)
-
-            # Attraction along edges
-            for link in links:
-                src = link["source"]
-                tgt = link["target"]
-                if src not in positions or tgt not in positions:
-                    continue
-                x1, y1 = positions[src]
-                x2, y2 = positions[tgt]
-                dx = x2 - x1
-                dy = y2 - y1
-                dist = max(math.sqrt(dx * dx + dy * dy), 1)
-                force = dist * 0.01 * link["weight"]
-                fx = force * dx / dist
-                fy = force * dy / dist
-                positions[src] = (x1 + fx, y1 + fy)
-                positions[tgt] = (x2 - fx, y2 - fy)
-
-        # Save positions to db
-        for node in nodes:
-            x, y = positions.get(node["id"], (0, 0))
-            await db.execute(
-                "UPDATE artists SET graph_x=?, graph_y=? WHERE id=?",
-                (x, y, node["id"])
-            )
-        await db.commit()
-
-        # Update nodes with positions
-        for node in nodes:
-            node["x"], node["y"] = positions.get(node["id"], (0, 0))
-
-        return graph
-
-    @staticmethod
-    async def generate_edges(db):
-        """
-        Generate graph edges from existing data:
-        - follow edges: who follows whom
-        - deposit edges: who supports whom
-        - genre similarity: artists in same genre cluster
-        - fan overlap: artists who share fans
-        """
-        # Follow edges
-        cursor = await db.execute("SELECT follower_id, followed_id FROM follows")
-        follows = await cursor.fetchall()
-        for f in follows:
-            await db.execute(
-                "INSERT OR REPLACE INTO graph_edges (source_id, target_id, edge_type, weight) VALUES (?,?,?,?)",
-                (f["follower_id"], f["followed_id"], "follow", 1.0)
-            )
-
-        # Deposit edges (fan → artist)
-        cursor = await db.execute(
-            "SELECT fan_artist_id, artist_id, COUNT(*) as cnt FROM payment_deposits "
-            "WHERE fan_artist_id IS NOT NULL AND status='completed' "
-            "GROUP BY fan_artist_id, artist_id"
-        )
-        deposits = await cursor.fetchall()
-        for d in deposits:
-            weight = min(5.0, 1.0 + d["cnt"] * 0.5)
-            await db.execute(
-                "INSERT OR REPLACE INTO graph_edges (source_id, target_id, edge_type, weight) VALUES (?,?,?,?)",
-                (d["fan_artist_id"], d["artist_id"], "deposit", weight)
-            )
-
-        # Collaboration edges
-        cursor = await db.execute(
-            "SELECT c1.artist_id as a1, c2.artist_id as a2, COUNT(*) as cnt "
-            "FROM collaborations c1 "
-            "JOIN collaborations c2 ON c1.track_id=c2.track_id AND c1.artist_id < c2.artist_id "
-            "GROUP BY c1.artist_id, c2.artist_id"
-        )
-        collabs = await cursor.fetchall()
-        for c in collabs:
-            weight = min(10.0, 2.0 + c["cnt"])
-            await db.execute(
-                "INSERT OR REPLACE INTO graph_edges (source_id, target_id, edge_type, weight) VALUES (?,?,?,?)",
-                (c["a1"], c["a2"], "collaboration", weight)
-            )
-
-        # Genre similarity edges (same cluster)
-        cursor = await db.execute("SELECT id, genre FROM artists")
-        artists = await cursor.fetchall()
-        clusters = {}
-        for a in artists:
-            cluster = GraphBuilder._genre_cluster(a["genre"])
-            clusters.setdefault(cluster, []).append(a["id"])
-
-        for cluster, ids in clusters.items():
-            for i in range(len(ids)):
-                for j in range(i + 1, len(ids)):
-                    await db.execute(
-                        "INSERT OR IGNORE INTO graph_edges (source_id, target_id, edge_type, weight) VALUES (?,?,?,?)",
-                        (ids[i], ids[j], "genre_similarity", 0.3)
-                    )
-                    await db.execute(
-                        "UPDATE artists SET graph_cluster=? WHERE id=? OR id=?",
-                        (cluster, ids[i], ids[j])
-                    )
-
-        await db.commit()
-
-
-# Singletons
-search_service = SemanticSearchService()
-graph_builder = GraphBuilder()
+# Singleton
+search_service = SearchService(dimension=128)

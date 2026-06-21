@@ -299,9 +299,9 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS track_embeddings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 track_id INTEGER NOT NULL,
-                embedding BLOB NOT NULL,
-                embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
-                dimension INTEGER DEFAULT 384,
+                embedding TEXT NOT NULL,
+                embedding_model TEXT DEFAULT 'tfidf-svd',
+                dimension INTEGER DEFAULT 128,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (track_id) REFERENCES tracks(id),
                 UNIQUE(track_id)
