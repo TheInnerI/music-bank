@@ -321,3 +321,11 @@ class SearchService:
 
 # Singleton
 search_service = SearchService(dimension=128)
+
+
+# Stub for graph_builder (not yet implemented in new vectors module)
+class GraphBuilder:
+    async def build_graph(self, db):
+        return {"nodes": [], "edges": []}
+
+graph_builder = GraphBuilder()
