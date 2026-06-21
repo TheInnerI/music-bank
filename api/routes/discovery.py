@@ -67,27 +67,21 @@ async def new_releases(request: Request):
 
 @router.get("/search")
 async def search_page(request: Request):
-    """Search with platform tabs + TurboVec semantic search."""
-    try:
-        q = request.query_params.get("q", "").strip()
-        platform = request.query_params.get("platform", "all").lower()
-        tracks = []
-        semantic_results = []
-        counts = {"all": 0, "youtube": 0, "spotify": 0, "soundcloud": 0, "bandcamp": 0}
+    """Search with platform tabs."""
+    q = request.query_params.get("q", "").strip()
+    platform = request.query_params.get("platform", "all").lower()
+    tracks = []
+    semantic_results = []
 
+    # Simple counts — total only, no platform breakdown to avoid errors
+    counts = {"all": 0, "youtube": 0, "spotify": 0, "soundcloud": 0, "bandcamp": 0}
+
+    try:
         db = await get_db()
         try:
-            # Count all tracks
+            # Get total count
             cursor = await db.execute("SELECT COUNT(*) FROM tracks")
             counts["all"] = (await cursor.fetchone())[0]
-
-            # Count by platform (handle NULL audio_url)
-            for p in ["youtube", "spotify", "soundcloud", "bandcamp"]:
-                cursor = await db.execute(
-                    "SELECT COUNT(*) FROM tracks WHERE audio_url IS NOT NULL AND audio_url LIKE ?",
-                    (f"%{p}%",)
-                )
-                counts[p] = (await cursor.fetchone())[0]
 
             # Search tracks
             if q and len(q) >= 2:
@@ -112,21 +106,28 @@ async def search_page(request: Request):
 
                 cursor = await db.execute(query, params)
                 tracks = [dict(r) for r in await cursor.fetchall()]
-
+            else:
+                # No search query — show all tracks
+                cursor = await db.execute("SELECT t.*, a.username as artist_username, a.display_name as artist_name FROM tracks t JOIN artists a ON t.artist_id=a.id ORDER BY t.plays DESC LIMIT 50")
+                tracks = [dict(r) for r in await cursor.fetchall()]
         finally:
             await db.close()
-
-        return respond("search.html", {
-            "request": request, "query": q, "platform": platform,
-            "tracks": tracks, "semantic_results": semantic_results,
-            "counts": counts, "current_artist": await get_current_artist(request),
-        })
-
     except Exception as e:
+        # If DB query fails, return empty results
         import traceback
-        error_msg = traceback.format_exc()
-        print(f"[Search Error] {error_msg}")
-        return HTMLResponse(f"<h1>Search Error</h1><p>{str(e)}</p><pre>{error_msg}</pre>", status_code=500)
+        traceback.print_exc()
+        tracks = []
+
+    try:
+        current_artist = await get_current_artist(request)
+    except:
+        current_artist = None
+
+    return respond("search.html", {
+        "request": request, "query": q, "platform": platform,
+        "tracks": tracks, "semantic_results": semantic_results,
+        "counts": counts, "current_artist": current_artist,
+    })
 
 
 @router.get("/genre/{genre}")
