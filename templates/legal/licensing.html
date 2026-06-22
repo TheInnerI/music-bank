@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Sync Licensing — Music Bank{% endblock %}
+
+{% block content %}
+<div class="page">
+    <h1>🎬 Sync Licensing Marketplace</h1>
+    <p class="text-muted">License music for film, TV, ads, games, and more.</p>
+
+    {% if tracks %}
+    <div class="track-list">
+        {% for t in tracks %}
+        <div class="track-list-item">
+            <div class="track-list-cover"><span>{{ t.title[0] if t.title else '?' }}</span></div>
+            <div class="track-list-info">
+                <a href="/tracks/{{ t.id }}" class="track-title">{{ t.title }}</a>
+                <span class="track-artist">{{ t.artist_name }}</span>
+                <span class="text-muted">{{ t.genre or '' }}</span>
+            </div>
+            <span class="track-plays">▶ {{ t.plays }}</span>
+            <a href="/tracks/{{ t.id }}" class="btn btn-sm">View</a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No tracks available for licensing yet. <a href="/artists/upload">Upload your music</a> to get started.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
