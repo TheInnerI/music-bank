@@ -42,6 +42,23 @@
                     <a href="/artists/{{ t.artist_username }}" class="track-artist">{{ t.artist_name }}</a>
                     <span class="text-muted">{{ t.genre or '' }}</span>
                 </div>
+                <div class="track-list-platforms">
+                    {% if t.audio_url %}
+                        {% if 'youtube.com' in t.audio_url or 'youtu.be' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge youtube" title="Watch on YouTube">▶️</a>
+                        {% elif 'spotify.com' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge spotify" title="Listen on Spotify">🎧</a>
+                        {% elif 'soundcloud.com' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge soundcloud" title="Listen on SoundCloud">☁️</a>
+                        {% elif 'bandcamp.com' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge bandcamp" title="Listen on Bandcamp">🏕️</a>
+                        {% elif 'apple.com' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge apple" title="Listen on Apple Music">🍎</a>
+                        {% else %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge" title="Listen">🔗</a>
+                        {% endif %}
+                    {% endif %}
+                </div>
                 <span class="track-plays">▶ {{ t.plays }}</span>
                 <a href="/tracks/{{ t.id }}" class="btn btn-sm">View</a>
             </div>
@@ -68,6 +85,23 @@
                     <a href="/artists/{{ t.artist_username }}" class="track-artist">{{ t.artist_name }}</a>
                     <span class="text-muted">{{ t.genre or '' }}</span>
                 </div>
+                <div class="track-list-platforms">
+                    {% if t.audio_url %}
+                        {% if 'youtube.com' in t.audio_url or 'youtu.be' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge youtube" title="Watch on YouTube">▶️</a>
+                        {% elif 'spotify.com' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge spotify" title="Listen on Spotify">🎧</a>
+                        {% elif 'soundcloud.com' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge soundcloud" title="Listen on SoundCloud">☁️</a>
+                        {% elif 'bandcamp.com' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge bandcamp" title="Listen on Bandcamp">🏕️</a>
+                        {% elif 'apple.com' in t.audio_url %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge apple" title="Listen on Apple Music">🍎</a>
+                        {% else %}
+                        <a href="{{ t.audio_url }}" target="_blank" class="platform-badge" title="Listen">🔗</a>
+                        {% endif %}
+                    {% endif %}
+                </div>
                 <span class="track-plays">▶ {{ t.plays }}</span>
                 <a href="/tracks/{{ t.id }}" class="btn btn-sm">View</a>
             </div>
@@ -86,6 +120,14 @@
 .search-loading { padding: 20px; text-align: center; color: var(--text-muted); }
 .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--observer); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.track-list-platforms { display: flex; gap: 6px; align-items: center; }
+.platform-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--deep); border: 1px solid var(--border); font-size: 12px; text-decoration: none; transition: all 0.2s; }
+.platform-badge:hover { transform: scale(1.1); border-color: var(--observer); }
+.platform-badge.youtube { border-color: #ff0000; }
+.platform-badge.spotify { border-color: #1db954; }
+.platform-badge.soundcloud { border-color: #ff5500; }
+.platform-badge.bandcamp { border-color: #629aa0; }
+.platform-badge.apple { border-color: #fa243c; }
 </style>
 
 <script>

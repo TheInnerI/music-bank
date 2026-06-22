@@ -85,13 +85,21 @@ const CLUSTER_COLORS = {
 };
 
 async function loadGraph() {
-    const resp = await fetch('/api/graph/data');
-    graphData = await resp.json();
-    document.getElementById('node-count').textContent = graphData.nodes.length;
-    document.getElementById('edge-count').textContent = graphData.links.length;
-    const clusters = new Set(graphData.nodes.map(n => n.cluster));
-    document.getElementById('cluster-count').textContent = clusters.size;
-    renderGraph();
+    try {
+        const resp = await fetch('/api/graph/data');
+        if (!resp.ok) throw new Error('Failed to load graph data');
+        const data = await resp.json();
+        // Support both 'links' and 'edges' keys
+        graphData.nodes = data.nodes || [];
+        graphData.links = data.links || data.edges || [];
+        document.getElementById('node-count').textContent = graphData.nodes.length;
+        document.getElementById('edge-count').textContent = graphData.links.length;
+        const clusters = new Set((graphData.nodes || []).map(n => n.cluster || n.genre || 'unknown'));
+        document.getElementById('cluster-count').textContent = clusters.size;
+        renderGraph();
+    } catch (e) {
+        console.error('Graph load error:', e);
+    }
 }
 
 function renderGraph() {
@@ -153,7 +161,7 @@ function renderGraph() {
         .selectAll('circle')
         .data(graphData.nodes)
         .enter().append('circle')
-        .attr('r', d => Math.max(5, Math.min(40, d.size || 8)))
+        .attr('r', d => Math.max(5, Math.min(40, d.size || d.plays ? Math.min(40, 5 + d.plays / 200) : 8)))
         .attr('fill', d => CLUSTER_COLORS[d.cluster] || '#6b7280')
         .attr('stroke', '#fff')
         .attr('stroke-width', 1.5)
@@ -178,7 +186,7 @@ function renderGraph() {
         .data(graphData.nodes)
         .enter().append('text')
         .text(d => d.display_name)
-        .attr('font-size', d => Math.max(10, Math.min(16, (d.size || 8) * 0.4)))
+        .attr('font-size', d => Math.max(10, Math.min(14, (d.size || 8) * 0.5)))
         .attr('fill', '#e8e8f0')
         .attr('dx', d => Math.max(8, d.size || 8) + 4)
         .attr('dy', 4)
