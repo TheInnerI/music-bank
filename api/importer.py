@@ -335,20 +335,25 @@ class SpotifyImporter:
         headers = {"Authorization": f"Bearer {token}"}
 
         if not artist_id and artist_name:
-            # Search for artist
+            # Search for artist — try multiple queries
             async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    f"{self.BASE_URL}/search",
-                    params={"q": artist_name, "type": "artist", "limit": 1},
-                    headers=headers,
-                    timeout=15.0,
-                )
-                data = resp.json()
-                artists = data.get("artists", {}).get("items", [])
-                if artists:
-                    artist_id = artists[0]["id"]
-                else:
-                    return {}
+                # Try exact name first, then without spaces, then first word
+                queries = [artist_name]
+                if " " in artist_name:
+                    queries.append(artist_name.replace(" ", ""))
+                    queries.append(artist_name.split()[0])
+                for q in queries:
+                    resp = await client.get(
+                        f"{self.BASE_URL}/search",
+                        params={"q": q, "type": "artist", "limit": 5},
+                        headers=headers,
+                        timeout=15.0,
+                    )
+                    data = resp.json()
+                    artists = data.get("artists", {}).get("items", [])
+                    if artists:
+                        artist_id = artists[0]["id"]
+                        break
 
         if not artist_id:
             return {}
