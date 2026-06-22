@@ -8,18 +8,22 @@
         <h1>🔍 Search Music</h1>
         <p class="text-muted">Search across all platforms. Filter by source.</p>
 
-        <form action="/discover/search" method="get" class="search-form">
-            <input type="text" name="q" value="{{ query }}" placeholder="Search tracks, artists, genres..." class="search-input">
+        <form action="/discover/search" method="get" class="search-form" id="search-form">
+            <input type="text" name="q" value="{{ query }}" placeholder="Search tracks, artists, genres..." class="search-input" id="search-input">
             <input type="hidden" name="platform" id="platform-input" value="{{ platform }}">
-            <button type="submit" class="btn">Search</button>
+            <button type="submit" class="btn" id="search-btn">Search</button>
         </form>
 
         <div class="platform-tabs">
-            <a href="/discover/search?q={{ query }}&platform=all" class="platform-tab {{ 'active' if platform == 'all' }}">All <span class="tab-count">{{ counts.all }}</span></a>
-            <a href="/discover/search?q={{ query }}&platform=youtube" class="platform-tab {{ 'active' if platform == 'youtube' }}">▶️ YouTube <span class="tab-count">{{ counts.youtube }}</span></a>
-            <a href="/discover/search?q={{ query }}&platform=spotify" class="platform-tab {{ 'active' if platform == 'spotify' }}">🎧 Spotify <span class="tab-count">{{ counts.spotify }}</span></a>
-            <a href="/discover/search?q={{ query }}&platform=soundcloud" class="platform-tab {{ 'active' if platform == 'soundcloud' }}">☁️ SoundCloud <span class="tab-count">{{ counts.soundcloud }}</span></a>
-            <a href="/discover/search?q={{ query }}&platform=bandcamp" class="platform-tab {{ 'active' if platform == 'bandcamp' }}">🏕️ Bandcamp <span class="tab-count">{{ counts.bandcamp }}</span></a>
+            <a href="/discover/search?q={{ query }}&platform=all" class="platform-tab {{ 'active' if platform == 'all' or not platform }}">All <span class="tab-count">{{ counts.all }}</span></a>
+            <a href="/discover/search?q={{ query }}&platform=youtube" class="platform-tab {{ 'active' if platform == 'youtube' }}">▶️ YouTube</a>
+            <a href="/discover/search?q={{ query }}&platform=spotify" class="platform-tab {{ 'active' if platform == 'spotify' }}">🎧 Spotify</a>
+            <a href="/discover/search?q={{ query }}&platform=soundcloud" class="platform-tab {{ 'active' if platform == 'soundcloud' }}">☁️ SoundCloud</a>
+            <a href="/discover/search?q={{ query }}&platform=bandcamp" class="platform-tab {{ 'active' if platform == 'bandcamp' }}">🏕️ Bandcamp</a>
+        </div>
+
+        <div id="search-loading" class="search-loading hidden">
+            <span class="spinner"></span> Searching...
         </div>
     </div>
 
@@ -28,6 +32,7 @@
         <h2>Results for "{{ query }}" {% if platform != 'all' %}- {{ platform|title }}{% endif %}</h2>
 
         {% if tracks %}
+        <p class="text-muted">{{ tracks|length }} tracks found</p>
         <div class="track-list">
             {% for t in tracks %}
             <div class="track-list-item">
@@ -45,6 +50,32 @@
         {% else %}
         <div class="empty-state">
             <p>No tracks found matching "{{ query }}"{% if platform != 'all' %} on {{ platform|title }}{% endif %}.</p>
+            <p class="text-muted">Try different keywords or <a href="/discover/search">browse all tracks</a>.</p>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="search-results">
+        <h2>All Tracks</h2>
+        {% if tracks %}
+        <p class="text-muted">{{ tracks|length }} tracks</p>
+        <div class="track-list">
+            {% for t in tracks %}
+            <div class="track-list-item">
+                <div class="track-list-cover"><span>{{ t.title[0] if t.title else '?' }}</span></div>
+                <div class="track-list-info">
+                    <a href="/tracks/{{ t.id }}" class="track-title">{{ t.title }}</a>
+                    <a href="/artists/{{ t.artist_username }}" class="track-artist">{{ t.artist_name }}</a>
+                    <span class="text-muted">{{ t.genre or '' }}</span>
+                </div>
+                <span class="track-plays">▶ {{ t.plays }}</span>
+                <a href="/tracks/{{ t.id }}" class="btn btn-sm">View</a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No tracks yet. <a href="/artists/upload">Upload your first track</a>!</p>
         </div>
         {% endif %}
     </div>
@@ -52,10 +83,16 @@
 </div>
 
 <style>
-.platform-tabs { display: flex; gap: 4px; margin: 16px 0; flex-wrap: wrap; }
-.platform-tab { padding: 8px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-full); color: var(--text-muted); font-size: 13px; text-decoration: none; }
-.platform-tab:hover { border-color: var(--observer); color: var(--text); }
-.platform-tab.active { background: var(--observer); border-color: var(--observer); color: white; }
-.platform-tab .tab-count { font-size: 11px; opacity: 0.7; margin-left: 4px; }
+.search-loading { padding: 20px; text-align: center; color: var(--text-muted); }
+.spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--observer); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
+
+<script>
+// Show loading indicator on form submit
+document.getElementById('search-form').addEventListener('submit', function() {
+    document.getElementById('search-loading').classList.remove('hidden');
+    document.getElementById('search-btn').disabled = true;
+});
+</script>
 {% endblock %}
