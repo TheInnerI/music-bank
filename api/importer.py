@@ -50,7 +50,7 @@ class YouTubeImporter:
     async def get_channel_info(self, channel_id: str = "", username: str = "") -> dict:
         """Get YouTube channel info. Supports channel ID, @handle, or channel name."""
         if not self.available:
-            return self._mock_channel_info(channel_id, username)
+            return {}  # No API key — don't create mock data
 
         params = {
             "part": "snippet,statistics,contentDetails",
@@ -143,7 +143,7 @@ class YouTubeImporter:
     async def get_channel_videos(self, channel_id: str = "", username: str = "", max_results: int = 500) -> list[dict]:
         """Get all videos from a YouTube channel."""
         if not self.available:
-            return self._mock_videos(channel_id, username, max_results)
+            return []  # No API key — don't create mock data
 
         # Get channel info first
         channel = await self.get_channel_info(channel_id, username)
@@ -326,7 +326,7 @@ class SpotifyImporter:
     async def get_artist_info(self, artist_id: str = "", artist_name: str = "") -> dict:
         """Get Spotify artist info."""
         if not self.available:
-            return self._mock_artist_info(artist_id, artist_name)
+            return {}  # No API key — don't create mock data
 
         token = await self._get_access_token()
         if not token:
@@ -374,7 +374,7 @@ class SpotifyImporter:
     async def get_artist_tracks(self, artist_id: str = "", artist_name: str = "", max_results: int = 200) -> list[dict]:
         """Get all tracks by an artist from Spotify."""
         if not self.available:
-            return self._mock_tracks(artist_id, artist_name, max_results)
+            return []  # No API key — don't create mock data
 
         token = await self._get_access_token()
         if not token:
@@ -496,7 +496,7 @@ class AppleMusicImporter:
     async def get_artist_info(self, artist_name: str = "") -> dict:
         """Search for an artist on Apple Music."""
         if not self.available:
-            return self._mock_artist_info(artist_name)
+            return {}  # No API key — don't create mock data
 
         headers = {"Authorization": f"Bearer {self.developer_token}"}
         if self.user_token:
@@ -525,7 +525,7 @@ class AppleMusicImporter:
     async def get_artist_tracks(self, artist_id: str = "", artist_name: str = "", max_results: int = 200) -> list[dict]:
         """Get all tracks by an artist from Apple Music."""
         if not self.available:
-            return self._mock_tracks(artist_id, artist_name, max_results)
+            return []  # No API key — don't create mock data
 
         # Apple Music API requires searching by artist name
         # Full implementation would use the catalog search + relationships
