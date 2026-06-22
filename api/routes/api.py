@@ -19,45 +19,54 @@ async def graph_data():
     """Get graph data for D3.js visualization."""
     db = await get_db()
     try:
-        # Get all artists
         cursor = await db.execute(
             "SELECT id, username, display_name, genre, total_plays, total_earnings_cents FROM artists"
         )
         artists = [dict(r) for r in await cursor.fetchall()]
 
-        # Build nodes
+        # Build nodes with fields matching D3.js expectations
         nodes = []
         for a in artists:
+            plays = a["total_plays"] or 0
             nodes.append({
                 "id": a["id"],
                 "username": a["username"],
-                "name": a["display_name"] or a["username"],
+                "display_name": a["display_name"] or a["username"],
                 "genre": a["genre"] or "unknown",
-                "plays": a["total_plays"] or 0,
+                "cluster": (a["genre"] or "unknown").lower(),
+                "plays": plays,
                 "earnings": (a["total_earnings_cents"] or 0) / 100,
+                "balance_cents": a["total_earnings_cents"] or 0,
+                "size": min(40, 5 + plays / 10),
             })
 
-        # Build edges from follows
+        # Build edges (called "links" in D3.js)
         edges = []
         seen = set()
+
+        # Follow edges
         cursor = await db.execute("SELECT follower_id, followed_id FROM follows")
         for r in await cursor.fetchall():
             key = (r["follower_id"], r["followed_id"])
             if key not in seen:
-                edges.append({"source": r["follower_id"], "target": r["followed_id"], "type": "follow"})
+                edges.append([r["follower_id"], r["followed_id"], "follow"])
                 seen.add(key)
 
-        # Build edges from genre similarity
+        # Genre similarity edges
         genre_groups = {}
         for a in artists:
             g = (a["genre"] or "unknown").lower()
             genre_groups.setdefault(g, []).append(a["id"])
         for g, ids in genre_groups.items():
             for i in range(len(ids)):
-                for j in range(i+1, len(ids)):
-                    edges.append({"source": ids[i], "target": ids[j], "type": "genre"})
+                for j in range(i + 1, len(ids)):
+                    edges.append([ids[i], ids[j], "genre"])
 
-        return JSONResponse({"nodes": nodes, "edges": edges})
+        # Return in D3.js expected format
+        return JSONResponse({
+            "nodes": nodes,
+            "links": [{"source": e[0], "target": e[1], "type": e[2], "weight": 1} for e in edges],
+        })
     finally:
         await db.close()
 
