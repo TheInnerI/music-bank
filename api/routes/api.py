@@ -41,7 +41,7 @@ async def graph_data():
         edges = []
         seen = set()
         cursor = await db.execute("SELECT follower_id, followed_id FROM follows")
-        for r in cursor.fetchall():
+        for r in await cursor.fetchall():
             key = (r["follower_id"], r["followed_id"])
             if key not in seen:
                 edges.append({"source": r["follower_id"], "target": r["followed_id"], "type": "follow"})
