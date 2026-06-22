@@ -19,8 +19,45 @@ async def graph_data():
     """Get graph data for D3.js visualization."""
     db = await get_db()
     try:
-        graph = await graph_builder.build_graph(db)
-        return JSONResponse(graph)
+        # Get all artists
+        cursor = await db.execute(
+            "SELECT id, username, display_name, genre, total_plays, total_earnings_cents FROM artists"
+        )
+        artists = [dict(r) for r in await cursor.fetchall()]
+
+        # Build nodes
+        nodes = []
+        for a in artists:
+            nodes.append({
+                "id": a["id"],
+                "username": a["username"],
+                "name": a["display_name"] or a["username"],
+                "genre": a["genre"] or "unknown",
+                "plays": a["total_plays"] or 0,
+                "earnings": (a["total_earnings_cents"] or 0) / 100,
+            })
+
+        # Build edges from follows
+        edges = []
+        seen = set()
+        cursor = await db.execute("SELECT follower_id, followed_id FROM follows")
+        for r in cursor.fetchall():
+            key = (r["follower_id"], r["followed_id"])
+            if key not in seen:
+                edges.append({"source": r["follower_id"], "target": r["followed_id"], "type": "follow"})
+                seen.add(key)
+
+        # Build edges from genre similarity
+        genre_groups = {}
+        for a in artists:
+            g = (a["genre"] or "unknown").lower()
+            genre_groups.setdefault(g, []).append(a["id"])
+        for g, ids in genre_groups.items():
+            for i in range(len(ids)):
+                for j in range(i+1, len(ids)):
+                    edges.append({"source": ids[i], "target": ids[j], "type": "genre"})
+
+        return JSONResponse({"nodes": nodes, "edges": edges})
     finally:
         await db.close()
 

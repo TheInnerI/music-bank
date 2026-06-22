@@ -21,6 +21,8 @@
             <div class="track-actions">
                 {% if track.audio_url and ('youtube.com' in track.audio_url or 'youtu.be' in track.audio_url) %}
                 <button class="btn btn-lg" onclick="toggleYouTubePlayer()">▶ Play on YouTube</button>
+                {% elif track.audio_url and 'spotify.com' in track.audio_url %}
+                <a href="{{ track.audio_url }}" target="_blank" class="btn btn-lg">🎧 Open in Spotify</a>
                 {% elif track.audio_url %}
                 <button class="btn btn-lg" onclick="playTrack({{ track.id }}, '{{ track.audio_url }}')">▶ Play</button>
                 {% else %}
@@ -38,6 +40,16 @@
                 <iframe id="youtube-iframe" width="100%" height="315" frameborder="0" allowfullscreen></iframe>
             </div>
             {% endif %}
+
+            {# Spotify embed #}
+            {% if track.audio_url and 'open.spotify.com/track/' in track.audio_url %}
+            <div class="spotify-embed">
+                <iframe src="https://open.spotify.com/embed/track/{{ track.audio_url.split('track/')[1].split('?')[0] }}"
+                    width="100%" height="80" frameborder="0" allowtransparency="true"
+                    allow="encrypted-media" style="border-radius: 12px;"></iframe>
+            </div>
+            {% endif %}
+
             <div class="track-stats-bar">
                 <span>▶ {{ track.plays }} plays</span>
                 <span>♥ {{ track.likes }} likes</span>
