@@ -9,8 +9,8 @@ RUN pip install --no-cache-dir --force-reinstall -r requirements.txt
 # Copy application
 COPY . .
 
-# Create static audio directory
-RUN mkdir -p /app/static/audio
+# Clear any stale __pycache__
+RUN find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 EXPOSE 8090
 
